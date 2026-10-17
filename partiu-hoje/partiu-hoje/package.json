@@ -1,0 +1,7 @@
+{
+  "name": "partiu-hoje",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Partiu Hoje? - app para deslizar e dar match com restaurantes e passeios",
+  "engines": { "node": ">=18" }
+}

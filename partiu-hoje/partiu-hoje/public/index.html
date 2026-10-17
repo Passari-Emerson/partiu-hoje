@@ -1,0 +1,564 @@
+<title>Partiu Hoje?</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+/* Layout: coluna única estilo app de celular (460px), cartas empilhadas no centro, barra de abas fixa embaixo. */
+:root{
+  --bg:#F2F9FA; --surface:#FFFFFF; --ink:#10282E; --muted:#4A666C; --line:#CFE2E5;
+  --accent:#D93A1A; --accent-ink:#FFFFFF; --leaf:#0E7C77; --leaf-soft:#D7EFEC; --warn:#B7791F;
+  --sun:#FFC62E; --sun-ink:#3A2A00;
+  --shadow:0 10px 30px rgba(16,40,46,.14);
+  --f-display:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
+  --f-body:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0C1A1D; --surface:#14272B; --ink:#EAF4F5; --muted:#8FAAB0; --line:#24404A;
+  --accent:#FF7A59; --accent-ink:#2A0C04; --leaf:#4FD1C5; --leaf-soft:#123A3A; --warn:#E3B04B;
+  --sun:#FFD04D; --sun-ink:#3A2A00;
+  --shadow:0 10px 30px rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0C1A1D; --surface:#14272B; --ink:#EAF4F5; --muted:#8FAAB0; --line:#24404A;
+  --accent:#FF7A59; --accent-ink:#2A0C04; --leaf:#4FD1C5; --leaf-soft:#123A3A; --warn:#E3B04B;
+  --sun:#FFD04D; --sun-ink:#3A2A00;
+  --shadow:0 10px 30px rgba(0,0,0,.5); color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:16px 96px;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.app{max-width:460px;margin:0 auto;display:flex;flex-direction:column;gap:14px;min-width:0}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-family:var(--f-display);font-weight:800;font-size:24px;letter-spacing:-.02em}
+.brand .q{display:inline-grid;place-items:center;width:1.1em;height:1.1em;margin-left:.1em;border-radius:50%;background:var(--sun);color:var(--sun-ink);font-size:.85em;line-height:1;vertical-align:.08em}
+.demo{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 10px}
+.label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;font-weight:500;min-height:40px}
+.chip[aria-pressed="true"]{background:var(--sun);border-color:var(--sun);color:var(--sun-ink);font-weight:700}
+.btn{border:0;border-radius:14px;padding:14px 18px;font-weight:700;background:var(--accent);color:var(--accent-ink);min-height:48px}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.small{padding:8px 12px;min-height:40px;border-radius:10px;font-size:14px}
+
+/* onboarding / profile */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:18px}
+.group{display:flex;flex-direction:column;gap:10px}
+.hero{background:var(--sun);color:var(--sun-ink);border-radius:22px;padding:22px 18px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-44px;top:-44px;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,.4);box-shadow:0 0 0 22px rgba(255,255,255,.2)}
+.hero>*{position:relative;z-index:1}
+.hero h1{font-size:34px;line-height:1.02;font-weight:800;max-width:11em}
+.hero p{margin:10px 0 0;max-width:30em}
+input[type=range]{width:100%;accent-color:var(--accent);min-height:32px}
+.rangeval{font-family:var(--f-display);font-weight:700}
+
+/* deck */
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+.deck{position:relative;height:clamp(430px,64dvh,560px);touch-action:pan-y;user-select:none}
+.card{position:absolute;inset:0;background:var(--surface);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;will-change:transform;transition:transform .25s ease}
+.card.top{cursor:grab;touch-action:none}
+.card.top.drag{transition:none;cursor:grabbing}
+.card[data-depth="1"]{transform:scale(.95) translateY(14px)}
+.card[data-depth="2"]{transform:scale(.9) translateY(28px)}
+.art{height:38%;min-height:130px;position:relative;color:#fff;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;
+  background:
+   radial-gradient(circle at 85% 20%,hsl(var(--h) 80% 70%/.55) 0 18%,transparent 19%),
+   radial-gradient(circle at 15% 110%,hsl(calc(var(--h) + 30) 70% 35%/.8) 0 38%,transparent 39%),
+   linear-gradient(135deg,hsl(var(--h) 62% 40%),hsl(calc(var(--h) + 24) 58% 30%))}
+.art.photo{background:linear-gradient(rgba(0,0,0,.12),rgba(0,0,0,.55)),var(--photo) center/cover,hsl(var(--h) 55% 35%)}
+.src a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.art .kind{align-self:flex-start;background:rgba(0,0,0,.35);border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.art .score{align-self:flex-end;font-family:var(--f-display);font-weight:800;font-size:30px;line-height:1;text-shadow:0 2px 8px rgba(0,0,0,.35)}
+.art .score small{font-size:12px;font-weight:500;display:block;text-align:right;opacity:.9}
+.art .row{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
+.body h2{font-size:24px;line-height:1.1;font-weight:800}
+.meta{display:flex;flex-wrap:wrap;gap:6px 12px;color:var(--muted);font-size:14px}
+.meta b{color:var(--ink)}
+.src{display:flex;gap:8px;flex-wrap:wrap}
+.src span{font-size:13px;border:1px solid var(--line);border-radius:8px;padding:3px 8px;font-variant-numeric:tabular-nums}
+.src b{color:var(--ink)}
+.why{background:var(--leaf-soft);border-radius:12px;padding:10px 12px;font-size:14px}
+.why ul{margin:6px 0 0;padding-left:18px}
+.sum{font-size:14px;color:var(--muted);margin:0}
+.sum em{font-style:normal;font-weight:700;color:var(--ink)}
+.stamp{position:absolute;top:18px;padding:4px 12px;border:3px solid;border-radius:10px;font-family:var(--f-display);font-weight:800;font-size:26px;letter-spacing:.04em;opacity:0;transform:rotate(-10deg);pointer-events:none;background:rgba(255,255,255,.85)}
+.stamp.like{left:16px;color:var(--leaf);border-color:var(--leaf)}
+.stamp.nope{right:16px;color:var(--accent);border-color:var(--accent);transform:rotate(10deg)}
+.actions{display:flex;justify-content:center;align-items:center;gap:18px}
+.round{width:64px;height:64px;border-radius:50%;border:2px solid var(--line);background:var(--surface);display:grid;place-items:center;box-shadow:var(--shadow)}
+.round svg{width:28px;height:28px}
+.round.no{color:var(--accent);border-color:var(--accent)}
+.round.yes{color:var(--leaf);border-color:var(--leaf)}
+.round.undo{width:48px;height:48px;color:var(--muted)}
+.round.undo svg{width:20px;height:20px}
+.round:disabled{opacity:.4;cursor:default}
+.empty{text-align:center;padding:36px 16px;color:var(--muted);display:flex;flex-direction:column;gap:12px;align-items:center}
+.empty h2{color:var(--ink);font-size:24px}
+
+/* matches */
+.list{display:flex;flex-direction:column;gap:10px}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;gap:12px;align-items:center}
+.dot{width:52px;height:52px;border-radius:14px;flex:none;color:#fff;display:grid;place-items:center;font-family:var(--f-display);font-weight:800;font-size:18px;
+  background:linear-gradient(135deg,hsl(var(--h) 62% 40%),hsl(calc(var(--h) + 24) 58% 30%))}
+.item .t{min-width:0;flex:1}
+.item h3{font-size:17px;line-height:1.15;font-weight:700}
+.item .m{font-size:13px;color:var(--muted)}
+.item .go{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.item a{color:var(--leaf);font-weight:700;font-size:14px;text-decoration:none;border:1.5px solid var(--leaf);border-radius:10px;padding:6px 10px;min-height:36px;display:inline-flex;align-items:center}
+
+/* tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);z-index:5;
+  padding:8px max(16px,env(safe-area-inset-left,0px)) calc(8px + env(safe-area-inset-bottom,0px))}
+.tabs div{max-width:460px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tab{border:0;background:transparent;border-radius:12px;padding:8px 4px;font-weight:700;color:var(--muted);min-height:48px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:13px}
+.tab svg{width:22px;height:22px}
+.tab[aria-current="page"]{color:var(--accent);background:var(--leaf-soft)}
+.toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:700;font-size:14px;z-index:9;max-width:90vw;text-align:center}
+/* grupo */
+.code{font-family:var(--f-display);font-weight:800;font-size:44px;line-height:1.1;letter-spacing:.18em;background:var(--sun);color:var(--sun-ink);border-radius:16px;padding:4px 14px 4px 22px;display:inline-block}
+.field{font:inherit;font-size:22px;letter-spacing:.25em;text-transform:uppercase;text-align:center;border:1.5px solid var(--line);border-radius:12px;padding:10px;background:var(--bg);color:var(--ink);width:100%;min-height:52px}
+.mem{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.mem:last-child{border-bottom:0}
+.mem span:first-child{min-width:0;overflow-wrap:anywhere}
+.mem span:last-child{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sub{margin:0;color:var(--muted);font-size:14px}
+.radius{display:flex;flex-direction:column;gap:2px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 14px}
+.radius label{font-size:14px;color:var(--muted)}
+.radius b{color:var(--ink);font-family:var(--f-display);font-size:16px}
+.radius input{width:100%;accent-color:var(--accent);min-height:28px}
+.credit{font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.card{transition:none}}
+</style>
+
+<div class="app" id="app"></div>
+<nav class="tabs" id="tabs" aria-label="Navegação"><div>
+  <button class="tab" data-tab="descobrir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="13" height="15" rx="3"/><path d="M8 3h9a3 3 0 0 1 3 3v11"/></svg>Descobrir</button>
+  <button class="tab" data-tab="matches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span id="mcount">Matches</span></button>
+  <button class="tab" data-tab="perfil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Perfil</button>
+</div></nav>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ---------- Dados de exemplo (lugares fictícios; no app real vêm das APIs oficiais) ---------- */
+const LIKE_GROUPS=[
+ ["Comer",["italiana","brasileira","churrasco","pizza","japonesa","chinesa","oriental","tailandesa","coreana","árabe","mexicana","frutos do mar","hambúrguer","vegana","contemporânea"]],
+ ["Beber e café",["cafés","padarias","bares","cerveja preta","cerveja artesanal","drinks","sorvete e sobremesas"]],
+ ["Passear",["música ao vivo","natureza","feiras","oficinas"]]];
+const LIKES=LIKE_GROUPS.flatMap(g=>g[1]);
+const VALUES=["local","sustentável","pet friendly","acessível","ao ar livre","romântico","família"];
+const DIETS=["vegetariano","vegano","sem glúten","sem lactose"];
+const TYPES={comer:"Comer",evento:"Eventos",passeio:"Passeios"};
+const byId=id=>P.find(p=>p.id===id)||S.saved[id];
+const SAMPLE=[
+{id:1,type:"comer",name:"Cantina da Nonna Lia",kind:"Cantina italiana",likes:["italiana"],price:2,dist:2.1,tags:["família","local","acessível"],diet:["vegetariano"],g:[4.6,1280],t:[4.5,610],sum:"Massas frescas e porções generosas. Fila aos sábados; vale reservar.",h:12},
+{id:2,type:"comer",name:"Churrasco do Galpão",kind:"Churrascaria",likes:["churrasco","brasileira"],price:3,dist:4.8,tags:["família","local"],diet:[],g:[4.5,2310],t:[4.4,980],sum:"Cortes bem passados no ponto e buffet de saladas. Barulhento em dia de jogo.",h:20},
+{id:3,type:"comer",name:"Raiz Plant Kitchen",kind:"Cozinha vegana",likes:["vegana","contemporânea"],price:2,dist:3.2,tags:["sustentável","pet friendly","local"],diet:["vegetariano","vegano","sem lactose"],g:[4.7,640],t:[4.6,290],sum:"Ingredientes de produtores da região e área externa que aceita cachorro.",h:150},
+{id:4,type:"comer",name:"Sushi Maré",kind:"Culinária japonesa",likes:["japonesa","oriental"],price:3,dist:5.5,tags:["romântico","acessível"],diet:["sem lactose"],g:[4.4,1520],t:[4.3,740],sum:"Peixe fresco e ambiente calmo, bom para casal. Serviço pode demorar.",h:205},
+{id:5,type:"comer",name:"Boteco do Zeca",kind:"Boteco",likes:["brasileira","bares"],price:1,dist:1.4,tags:["local","pet friendly","ao ar livre"],diet:[],g:[4.3,3050],t:[4.2,420],sum:"Petiscos baratos, mesas na calçada e chope bem tirado.",h:38},
+{id:6,type:"comer",name:"Padaria Trigo & Terra",kind:"Padaria artesanal",likes:["cafés","padarias"],price:1,dist:.9,tags:["local","sustentável","acessível"],diet:["vegetariano"],g:[4.6,1890],t:[4.5,330],sum:"Pães de fermentação natural e café coado. Acaba cedo nos fins de semana.",h:30},
+{id:7,type:"comer",name:"Mesa Lume",kind:"Cozinha contemporânea",likes:["contemporânea"],price:4,dist:6,tags:["romântico","local"],diet:["vegetariano","sem glúten"],g:[4.8,410],t:[4.7,260],sum:"Menu degustação com ingredientes locais. Caro, mas elogiado pela experiência.",h:290},
+{id:8,type:"comer",name:"Pizza Forno Vivo",kind:"Pizzaria a lenha",likes:["pizza","italiana"],price:2,dist:2.8,tags:["família","pet friendly","ao ar livre"],diet:["vegetariano"],g:[4.5,2760],t:[4.4,870],sum:"Massa leve e pátio com árvores. Bom para ir em grupo.",h:8},
+{id:9,type:"comer",name:"Tacos Lua Cheia",kind:"Mexicana",likes:["mexicana"],price:2,dist:3.9,tags:["ao ar livre","local"],diet:["sem glúten","vegetariano"],g:[4.4,960],t:[4.3,300],sum:"Tortilhas de milho feitas na hora e molhos bem picantes.",h:95},
+{id:10,type:"evento",name:"Feira Gastronômica da Orla",kind:"Evento · sáb 10h–18h",likes:["feiras"],price:1,dist:7,tags:["ao ar livre","família","local","pet friendly"],diet:[],g:[4.6,870],t:null,sum:"Barracas de produtores, música leve e espaço para crianças.",h:60},
+{id:11,type:"evento",name:"Noite de Jazz no Armazém",kind:"Evento · sex 20h",likes:["música ao vivo"],price:2,dist:4.2,tags:["romântico","local"],diet:[],g:[4.7,540],t:null,sum:"Trio ao vivo em armazém reformado. Lugares limitados.",h:265},
+{id:12,type:"passeio",name:"Trilha do Morro ao Pôr do Sol",kind:"Passeio · 2h30",likes:["natureza"],price:1,dist:18,tags:["ao ar livre","sustentável","pet friendly"],diet:[],g:[4.8,1330],t:[4.7,510],sum:"Subida moderada com vista ampla. Leve água e saia com luz do dia.",h:130},
+{id:13,type:"passeio",name:"Passeio de Barco no Guaíba",kind:"Passeio · 1h30",likes:["natureza"],price:2,dist:8.5,tags:["romântico","ao ar livre","acessível"],diet:[],g:[4.5,2100],t:[4.5,1180],sum:"Saída no fim de tarde. Embarque acessível para cadeira de rodas.",h:195},
+{id:14,type:"passeio",name:"Rota dos Cafés Coloniais",kind:"Passeio · dia inteiro",likes:["cafés","brasileira"],price:3,dist:25,tags:["família","local"],diet:["vegetariano"],g:[4.6,760],t:[4.6,640],sum:"Três paradas em propriedades familiares, com mesa farta de doces e pães.",h:42},
+{id:15,type:"evento",name:"Oficina de Massas Artesanais",kind:"Evento · dom 15h",likes:["oficinas","italiana"],price:3,dist:3,tags:["família","local"],diet:["vegetariano"],g:[4.9,180],t:null,sum:"Aula prática de 3 horas, com degustação ao final. Turmas pequenas.",h:340},
+{id:16,type:"comer",name:"Cervejaria Malte Negro",kind:"Cervejaria artesanal",likes:["cerveja preta","cerveja artesanal","bares"],price:2,dist:3.4,tags:["local","ao ar livre","pet friendly"],diet:[],g:[4.7,820],t:[4.6,310],sum:"Stouts e porters da casa, petiscos e mesas na calçada.",h:25},
+{id:17,type:"comer",name:"Dragão Dourado",kind:"Culinária chinesa",likes:["chinesa","oriental"],price:2,dist:3,tags:["família","acessível"],diet:["vegetariano"],g:[4.4,1100],t:[4.3,380],sum:"Yakisoba e dim sum em porções grandes para dividir.",h:5},
+{id:18,type:"comer",name:"Bangkok Rua 7",kind:"Culinária tailandesa",likes:["tailandesa","oriental"],price:2,dist:4.1,tags:["local"],diet:["vegetariano","sem lactose"],g:[4.6,430],t:[4.5,150],sum:"Pad thai e curries no ponto de picância que você pedir.",h:125},
+{id:19,type:"comer",name:"Café Grão Vivo",kind:"Cafeteria",likes:["cafés"],price:1,dist:1.6,tags:["local","sustentável","pet friendly"],diet:["vegetariano"],g:[4.7,950],t:[4.6,260],sum:"Grãos de pequenos produtores e bolo caseiro. Bom para trabalhar.",h:18},
+{id:20,type:"comer",name:"Bar Coquetel 33",kind:"Bar de drinks",likes:["bares","drinks"],price:3,dist:5.2,tags:["romântico"],diet:[],g:[4.5,700],t:[4.4,220],sum:"Carta autoral de drinks e luz baixa. Lota depois das 21h.",h:320},
+{id:21,type:"comer",name:"Gelato Piazza",kind:"Sorveteria",likes:["sorvete e sobremesas"],price:1,dist:2.2,tags:["família","acessível"],diet:["vegetariano"],g:[4.8,1500],t:[4.7,420],sum:"Sabores sazonais e opções sem leite. Fila no fim de semana.",h:190},
+{id:22,type:"comer",name:"Seoul Mandu",kind:"Culinária coreana",likes:["coreana","oriental"],price:2,dist:6.5,tags:["ao ar livre"],diet:[],g:[4.5,380],t:null,sum:"Bibimbap e churrasco coreano na mesa. Atendimento rápido.",h:355}
+];
+let P=SAMPLE.map(x=>({...x,id:String(x.id)}));
+let LIVE=false;
+
+/* ---------- Estado ---------- */
+const KEY="partiu-hoje-v1";
+const blank=()=>({onboarded:false,prefs:{likes:[],values:[],diet:[],maxPrice:3,maxDist:10},liked:[],passed:[],w:{},hist:[],tab:"descobrir",types:["comer","passeio"],room:null,saved:{}});
+let S=blank();
+try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(blank(),JSON.parse(r))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const $=s=>document.querySelector(s);
+const brl=n=>"R$".repeat(n);
+const km=d=>d.toFixed(1).replace(".",",")+" km";
+
+/* ---------- Pontuação e motivos ---------- */
+function rate(p){const a=[p.g,p.t].filter(Boolean);return a.reduce((s,x)=>s+x[0],0)/a.length}
+function score(p){
+  const pr=S.prefs;let s=50,why=[];
+  const lk=p.likes.filter(x=>pr.likes.includes(x));
+  if(lk.length){s+=20;why.push("Combina com seu gosto por "+lk[0])}
+  const vm=p.tags.filter(x=>pr.values.includes(x));
+  if(vm.length){s+=Math.min(18,vm.length*7);why.push("Valores em comum: "+vm.slice(0,3).join(", "))}
+  if(p.price<=pr.maxPrice){s+=8;if(p.type==="comer")why.push("Dentro do seu orçamento ("+brl(p.price)+")")}else s-=15;
+  if(p.dist<=pr.maxDist){s+=4;why.push("A "+km(p.dist)+" de você")}else s-=12;
+  s+=(rate(p)-4)*10;
+  let l=0;p.likes.concat(p.tags).forEach(t=>{l+=S.w[t]||0});
+  if(Math.abs(l)>0.5){s+=Math.max(-15,Math.min(15,l));if(l>0)why.push("Parecido com o que você curtiu")}
+  return {s:Math.max(5,Math.min(99,Math.round(s))),why:why.slice(0,3)}
+}
+const DRINKISH=new Set(["bares","cerveja preta","cerveja artesanal","drinks","música ao vivo"]);
+const dietOK=p=>(LIVE&&p.likes.every(l=>DRINKISH.has(l)))||S.prefs.diet.every(d=>p.diet.includes(d)||(LIVE&&d!=="vegetariano"));
+function queue(){
+  const done=new Set(S.liked.concat(S.passed));
+  return P.filter(p=>!done.has(p.id)&&S.types.includes(p.type)&&(!LIVE||p.dist<=S.prefs.maxDist)&&(p.type!=="comer"||dietOK(p)))
+    .map(p=>({p,...score(p)})).sort((a,b)=>b.s-a.s)
+}
+
+/* ---------- Telas ---------- */
+const ICON={no:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+ yes:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z"/></svg>',
+ undo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>'};
+function chips(list,sel,grp){return '<div class="chips">'+list.map(x=>`<button class="chip" data-grp="${grp}" data-v="${x}" aria-pressed="${sel.includes(x)}">${x}</button>`).join("")+'</div>'}
+function prefsForm(){
+  const pr=S.prefs;
+  return `${LIKE_GROUPS.map(g=>`<div class="group"><span class="label">${g[0]}: o que você curte</span>${chips(g[1],pr.likes,"likes")}</div>`).join("")}
+  <div class="group"><span class="label">Valores</span>${chips(VALUES,pr.values,"values")}</div>
+  <div class="group"><span class="label">Restrições alimentares</span>${chips(DIETS,pr.diet,"diet")}</div>
+  <div class="group"><span class="label">Orçamento máximo</span><div class="chips">${[1,2,3,4].map(n=>`<button class="chip" data-grp="price" data-v="${n}" aria-pressed="${pr.maxPrice===n}">${brl(n)}</button>`).join("")}</div></div>
+  <div class="group"><label class="label" for="dist">Distância máxima: <span class="rangeval" id="distv">${pr.maxDist} km</span></label><input type="range" id="dist" min="1" max="30" value="${pr.maxDist}"></div>`
+}
+function viewOnboarding(){
+  return `<div class="top"><div class="brand">Partiu Hoje<span class="q">?</span></div><span class="demo">protótipo</span></div>
+  <div class="hero"><h1>Partiu hoje? Deslize até achar o programa.</h1><p>Conte seus gostos e valores. O app cruza notas do Google, TripAdvisor e outras fontes e mostra o que combina com você.</p></div>
+  <div class="panel">${prefsForm()}<button class="btn" data-act="start">Começar a deslizar</button></div>`
+}
+function cardHTML(o,depth){
+  const p=o.p;
+  const src=srcHTML(p);
+  return `<article class="card ${depth===0?"top":""}" data-depth="${depth}" data-id="${p.id}" style="--h:${p.h}">
+   <div class="art${p.photo?' photo':''}"${p.photo?` style="--photo:url('/api/photo?name=${encodeURIComponent(p.photo)}')"`:""}><span class="kind">${TYPES[p.type]}</span><div class="row"><span style="font-size:13px;font-weight:500;opacity:.95">${p.kind}</span><span class="score">${o.s}%<small>de match</small></span></div></div>
+   <div class="body"><h2>${p.name}</h2>
+   <div class="meta"><span><b>${p.type==="comer"?brl(p.price):(p.price===1?"Grátis ou barato":brl(p.price))}</b></span><span>${km(p.dist)}</span></div>
+   <div class="src">${src}</div>
+   <p class="sum"><em>Resumo das avaliações:</em> ${p.sum}</p>
+   <div class="why"><b>Por que combina</b><ul>${o.why.length?o.why.map(w=>`<li>${w}</li>`).join(""):"<li>Bem avaliado perto de você</li>"}</ul></div>${LIVE&&S.prefs.diet.some(d=>d!=="vegetariano")?'<p class="sub">Confirme suas restrições alimentares direto com o local.</p>':""}</div>
+   ${depth===0?'<span class="stamp like">CURTI</span><span class="stamp nope">PASSO</span>':""}</article>`
+}
+function viewDeck(){
+  const q=queue();
+  const f=Object.keys(TYPES).map(k=>`<button class="chip" data-grp="type" data-v="${k}" aria-pressed="${S.types.includes(k)}">${TYPES[k]}</button>`).join("");
+  let deck;
+  if(!q.length){
+    deck=`<div class="empty"><h2>Acabaram as opções</h2><p>Você viu tudo que combina com seus filtros. Amplie a distância, o orçamento ou os tipos no seu perfil.</p><button class="btn" data-tab="perfil">Ajustar perfil</button></div>`
+  }else{
+    deck=`<div class="deck" id="deck">${q.slice(0,3).map((o,i)=>cardHTML(o,i)).reverse().join("")}</div>
+    <div class="actions"><button class="round undo" data-act="undo" aria-label="Desfazer" ${S.hist.length?"":"disabled"}>${ICON.undo}</button>
+    <button class="round no" data-act="no" aria-label="Passar">${ICON.no}</button>
+    <button class="round yes" data-act="yes" aria-label="Curtir">${ICON.yes}</button></div>`
+  }
+  return `<div class="top"><div class="brand">Partiu Hoje<span class="q">?</span></div><span class="demo">${LIVE?"lugares reais":"dados de exemplo"}</span></div><div class="filters">${f}</div><div class="radius"><label for="r2">Raio de busca: <b id="r2v">${S.prefs.maxDist} km</b></label><input type="range" id="r2" min="1" max="30" value="${S.prefs.maxDist}">${LIVE&&LOC_NOTE?`<span class="credit">${LOC_NOTE}</span>`:""}</div>${deck}`
+}
+function viewMatches(){
+  const items=S.liked.map(id=>byId(id)).filter(Boolean);
+  const body=items.length?`<div class="list">${items.map(p=>`<div class="item" style="--h:${p.h}"><div class="dot">${p.name[0]}</div>
+    <div class="t"><h3>${p.name}</h3><div class="m">${p.kind} · ${km(p.dist)} · nota ${rate(p).toFixed(1).replace(".",",")}</div>
+    <div class="go"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name+" "+(p.addr||"Porto Alegre"))}" target="_blank" rel="noopener">Abrir no mapa</a><button class="btn ghost small" data-act="unlike" data-id="${p.id}">Remover</button></div></div></div>`).join("")}</div>`
+    :`<div class="empty"><h2>Nenhum match ainda</h2><p>Curta lugares na aba Descobrir e eles aparecem aqui.</p><button class="btn" data-tab="descobrir">Começar a deslizar</button></div>`;
+  return `<div class="top"><h1 style="font-size:28px">Seus matches</h1><span class="demo">${items.length} salvo${items.length===1?"":"s"}</span></div>${body}`
+}
+function viewProfile(){
+  return `<div class="top"><h1 style="font-size:28px">Seu perfil</h1></div><div class="panel">${prefsForm()}
+  <div class="group"><span class="label">Aprendizado</span><p style="margin:0;color:var(--muted)">Cada curtida e cada "passo" ajusta a ordem dos próximos cards. Você já avaliou ${S.liked.length+S.passed.length} lugares.</p>
+  <button class="btn ghost" data-act="reset">Zerar curtidas e aprendizado</button></div></div>`
+}
+function render(){
+  const app=$("#app");
+  $("#tabs").hidden=!S.onboarded;
+  document.body.style.paddingBottom=S.onboarded?"":"24px";
+  if(!S.onboarded){app.innerHTML=viewOnboarding()}
+  else{app.innerHTML={descobrir:viewDeck,grupo:viewGroup,matches:viewMatches,perfil:viewProfile}[S.tab]()}
+  document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===S.tab?"page":"false"));
+  $("#mcount").textContent=S.liked.length?"Matches ("+S.liked.length+")":"Matches";
+  bindSwipe();afterRender()
+}
+function toast(t){const e=$("#toast");e.textContent=t;e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>e.hidden=true,1800)}
+
+/* ---------- Grupo (db compartilhado) ---------- */
+let DB=null,USER=null,ME=null,canWrite=null,swipes={},NAMES={},unsub=null,syncing=Promise.resolve();
+const CODE_CH="ABCDEFGHJKLMNPQRSTUVWXYZ";
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const newCode=()=>Array.from({length:4},()=>CODE_CH[Math.floor(Math.random()*CODE_CH.length)]).join("");
+const mapLink=p=>`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name+" "+(p.addr||"Porto Alegre"))}`;
+function subscribeRoom(code){
+  if(unsub){unsub();unsub=null}
+  swipes={};
+  unsub=DB.collection("rooms/"+code+"/swipes").onSnapshot(snap=>{
+    swipes={};snap.docs.forEach(d=>{swipes[d.id]=d.data()||{}});
+    loadNames();
+    if(S.tab==="grupo"&&S.onboarded)render()
+  },()=>{})
+}
+async function loadNames(){
+  if(!USER)return;
+  const ids=Object.keys(swipes);
+  if(!ids.some(i=>!(i in NAMES)))return;
+  try{const ps=await USER.profiles(ids);ids.forEach(i=>{NAMES[i]=(ps[i]&&ps[i].name)||""});if(S.tab==="grupo")render()}catch(e){}
+}
+function pushSwipes(){
+  if(!DB||!ME||!S.room)return Promise.resolve();
+  const code=S.room,body={likes:S.liked.slice(),passes:S.passed.slice(),t:Date.now()};
+  syncing=syncing.then(()=>DB.doc("rooms/"+code+"/swipes/"+ME).set(body)).catch(()=>{});
+  return syncing
+}
+async function createRoom(){
+  const code=newCode();
+  try{await DB.doc("rooms/"+code).set({code,owner:ME,createdAt:Date.now()});await joinRoom(code,true)}
+  catch(e){toast("Não foi possível criar a sala")}
+}
+async function joinRoom(code,skipCheck){
+  code=String(code||"").trim().toUpperCase();
+  if(!/^[A-Z]{4}$/.test(code)){toast("O código tem 4 letras");return}
+  try{
+    if(!skipCheck){const d=await DB.doc("rooms/"+code).get();if(!d.exists){toast("Sala não encontrada");return}}
+    S.room=code;save();subscribeRoom(code);await pushSwipes();render()
+  }catch(e){toast("Não foi possível entrar na sala")}
+}
+function leaveRoom(){if(unsub){unsub();unsub=null}swipes={};S.room=null;save();render()}
+function viewGroup(){
+  const head=`<div class="top"><h1 style="font-size:28px">Em grupo</h1>${S.room?`<span class="demo">sala ${S.room}</span>`:""}</div>`;
+  if(!DB||!ME)return head+`<div class="empty"><h2>Grupo indisponível agora</h2><p>O match em grupo precisa que você esteja logado no Claude e que cada pessoa tenha acesso de Contribuidor a este protótipo (menu Compartilhar).</p></div>`;
+  if(canWrite===false)return head+`<div class="empty"><h2>Só leitura</h2><p>Peça ao dono do protótipo acesso de Contribuidor para participar de uma sala.</p></div>`;
+  if(!S.room)return head+`<div class="panel"><div class="group"><h2 style="font-size:22px">Criar uma sala</h2><p class="sub">Você recebe um código de 4 letras. Quem entrar com ele desliza os mesmos lugares, e o app mostra o que todo mundo curtiu.</p><button class="btn" data-act="create">Criar sala</button></div>
+    <div class="group"><h2 style="font-size:22px">Entrar com código</h2><input class="field" id="joincode" maxlength="4" placeholder="ABCD" autocomplete="off" aria-label="Código da sala"><button class="btn ghost" data-act="join">Entrar</button></div></div>`;
+  const ids=Object.keys(swipes);
+  const mem=ids.map((id,i)=>{const s=swipes[id],n=(s.likes||[]).length+(s.passes||[]).length;
+    return `<div class="mem"><span>${esc(NAMES[id]||("Participante "+(i+1)))}${id===ME?" (você)":""}</span><span>${n}/${P.length} avaliados</span></div>`}).join("");
+  const sets=ids.map(id=>new Set(swipes[id].likes||[]));
+  const all=P.filter(p=>sets.length>1&&sets.every(s=>s.has(p.id)));
+  const near=P.filter(p=>sets.length>2&&!all.includes(p)&&sets.filter(s=>s.has(p.id)).length===sets.length-1);
+  const row=(p,note)=>`<div class="item" style="--h:${p.h}"><div class="dot">${p.name[0]}</div><div class="t"><h3>${p.name}</h3><div class="m">${p.kind} · ${km(p.dist)} · ${note}</div><div class="go"><a href="${mapLink(p)}" target="_blank" rel="noopener">Abrir no mapa</a></div></div></div>`;
+  let res;
+  if(ids.length<2)res=`<p class="sub">Compartilhe o código <b>${S.room}</b> com seus amigos. Quando a segunda pessoa entrar e começar a deslizar, os matches do grupo aparecem aqui.</p>`;
+  else if(all.length)res=`<div class="list">${all.map(p=>row(p,"todos curtiram")).join("")}</div>`;
+  else res=`<p class="sub">Ainda não há lugar que todos curtiram. Continue deslizando na aba Descobrir.</p>`;
+  return head+`<div class="panel"><div class="group" style="align-items:flex-start"><span class="label">Código da sala</span><div class="code">${S.room}</div><div class="chips"><button class="btn small" data-act="copy">Copiar código</button><button class="btn ghost small" data-act="leave">Sair da sala</button></div>
+    <p class="sub">Suas curtidas e recusas passam a contar para o grupo enquanto você estiver na sala.</p></div>
+    <div class="group"><span class="label">Quem está na sala</span>${mem||'<p class="sub">Conectando à sala…</p>'}</div></div>
+    <div class="group"><h2 style="font-size:22px">Match do grupo</h2>${res}</div>
+    ${near.length?`<div class="group"><h2 style="font-size:20px">Quase lá</h2><p class="sub">Só uma pessoa não curtiu.</p><div class="list">${near.map(p=>row(p,"falta 1 pessoa")).join("")}</div></div>`:""}`
+}
+
+/* ---------- Lugares reais: Google Places (/api/places) e TripAdvisor (/api/tripadvisor) ---------- */
+const LIKE_Q={
+ "italiana":[["restaurante italiano"],"comer"],
+ "brasileira":[["restaurante comida brasileira","restaurante comida caseira"],"comer"],
+ "churrasco":[["churrascaria"],"comer"],
+ "pizza":[["pizzaria"],"comer"],
+ "japonesa":[["restaurante japonês","sushi"],"comer"],
+ "chinesa":[["restaurante chinês"],"comer"],
+ "oriental":[["restaurante oriental asiático"],"comer"],
+ "tailandesa":[["restaurante tailandês"],"comer"],
+ "coreana":[["restaurante coreano"],"comer"],
+ "árabe":[["restaurante árabe"],"comer"],
+ "mexicana":[["restaurante mexicano"],"comer"],
+ "frutos do mar":[["restaurante frutos do mar peixes"],"comer"],
+ "hambúrguer":[["hamburgueria"],"comer"],
+ "vegana":[["restaurante vegano vegetariano"],"comer"],
+ "contemporânea":[["restaurante contemporâneo"],"comer"],
+ "cafés":[["cafeteria café"],"comer"],
+ "padarias":[["padaria confeitaria"],"comer"],
+ "bares":[["bar","boteco"],"comer"],
+ "cerveja preta":[["cervejaria cerveja preta stout","bar cerveja artesanal stout porter"],"comer"],
+ "cerveja artesanal":[["cervejaria artesanal","bar de cerveja artesanal"],"comer"],
+ "drinks":[["bar de drinks coquetelaria"],"comer"],
+ "sorvete e sobremesas":[["sorveteria gelateria","confeitaria doces sobremesas"],"comer"],
+ "música ao vivo":[["bar com música ao vivo"],"comer"],
+ "natureza":[["parques trilhas mirantes"],"passeio"],
+ "feiras":[["feira gastronômica feira de rua"],"passeio"],
+ "oficinas":[["oficina workshop culinária"],"passeio"]};
+const DEFAULT_LIKES=["brasileira","bares","cafés","pizza","japonesa","italiana"];
+const FALLBACK={lat:-30.0346,lng:-51.2177};
+const PRICE={PRICE_LEVEL_FREE:1,PRICE_LEVEL_INEXPENSIVE:1,PRICE_LEVEL_MODERATE:2,PRICE_LEVEL_EXPENSIVE:3,PRICE_LEVEL_VERY_EXPENSIVE:4};
+let POS=null,RADIUS=5000,JOBS=[],TA={},TA_OFF=false,loadingMore=false,LOC_NOTE="";
+const fmt=n=>n.toFixed(1).replace(".",",");
+const where=()=>new Promise(res=>{if(!navigator.geolocation)return res(null);navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),()=>res(null),{timeout:8000,maximumAge:600000})});
+function hav(a,b,c,d){const r=x=>x*Math.PI/180,dl=r(c-a),dn=r(d-b);const h=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dn/2)**2;return 2*6371*Math.asin(Math.sqrt(h))}
+function hue(s){let h=0;for(const c of String(s))h=(h*31+c.charCodeAt(0))%360;return h}
+function srcHTML(p){
+  const o=[];
+  if(p.g)o.push(`<span>Google <b>${fmt(p.g[0])}</b> (${p.g[1].toLocaleString("pt-BR")})</span>`);
+  if(p.t){
+    const inner=`TripAdvisor <b>${fmt(p.t[0])}</b> (${p.t[1].toLocaleString("pt-BR")})`;
+    o.push(p.taUrl&&/^https:\/\//.test(p.taUrl)?`<span><a href="${esc(p.taUrl)}" target="_blank" rel="noopener">${inner}</a></span>`:`<span>${inner}</span>`)
+  }
+  return o.join("")
+}
+function mapPlace(r,pos,like,type){
+  const tags=[];
+  if(r.allowsDogs)tags.push("pet friendly");
+  if(r.outdoorSeating)tags.push("ao ar livre");
+  if(r.goodForChildren||r.menuForChildren)tags.push("família");
+  if(r.accessibilityOptions&&r.accessibilityOptions.wheelchairAccessibleEntrance)tags.push("acessível");
+  const loc=r.location||{};
+  return {id:String(r.id),type,name:(r.displayName&&r.displayName.text)||"Sem nome",
+    kind:(r.primaryTypeDisplayName&&r.primaryTypeDisplayName.text)||(type==="comer"?"Restaurante":"Passeio"),
+    likes:[like],price:PRICE[r.priceLevel]||2,
+    dist:loc.latitude!=null?hav(pos.lat,pos.lng,loc.latitude,loc.longitude):99,
+    lat:loc.latitude,lng:loc.longitude,
+    tags,diet:r.servesVegetarianFood?["vegetariano"]:[],
+    g:[r.rating,r.userRatingCount||0],t:null,
+    sum:(r.editorialSummary&&r.editorialSummary.text)||r.formattedAddress||"",
+    h:hue(r.id),photo:(r.photos&&r.photos[0]&&r.photos[0].name)||null,addr:r.formattedAddress||""}
+}
+function buildJobs(){
+  const sel=S.prefs.likes.filter(l=>LIKE_Q[l]);
+  const likes=sel.length?sel:DEFAULT_LIKES,jobs=[];
+  for(let i=0;i<2;i++)likes.forEach(l=>{const q=LIKE_Q[l][0][i];if(q)jobs.push({q,like:l,type:LIKE_Q[l][1],token:null,done:false})});
+  return jobs.slice(0,14)
+}
+async function fetchPage(j){
+  const u="/api/places?q="+encodeURIComponent(j.q)+"&lat="+POS.lat+"&lng="+POS.lng+"&radius="+RADIUS+(j.token?"&pageToken="+encodeURIComponent(j.token):"");
+  const r=await fetch(u);
+  if(!r.ok)throw new Error("api");
+  const d=await r.json();
+  j.token=d.nextPageToken||null;if(!j.token)j.done=true;
+  return (d.places||[]).filter(x=>x.rating&&x.id).map(x=>mapPlace(x,POS,j.like,j.type))
+}
+function merge(list){
+  const idx=new Map(P.map(p=>[p.id,p]));
+  list.forEach(p=>{const e=idx.get(p.id);if(e){p.likes.forEach(l=>{if(!e.likes.includes(l))e.likes.push(l)})}else{applyTA(p);idx.set(p.id,p);P.push(p)}})
+}
+async function loadLive(){
+  const got=await where();
+  POS=got||FALLBACK;
+  LOC_NOTE=got?"Usando sua localização atual.":"Sem acesso à sua localização: mostrando perto do centro de Porto Alegre.";
+  RADIUS=Math.max(500,Math.min(50000,Math.round(S.prefs.maxDist*1000)));
+  JOBS=buildJobs();
+  const rs=await Promise.allSettled(JOBS.map(fetchPage));
+  const ok=rs.filter(r=>r.status==="fulfilled"&&r.value.length);
+  if(!ok.length)return;
+  P=[];ok.forEach(r=>merge(r.value));
+  LIVE=true;render()
+}
+async function loadMore(){
+  if(loadingMore)return;
+  const todo=JOBS.filter(j=>!j.done&&j.token).slice(0,4);
+  if(!todo.length)return;
+  loadingMore=true;
+  const rs=await Promise.allSettled(todo.map(fetchPage));
+  rs.forEach(r=>{if(r.status==="fulfilled")merge(r.value)});
+  loadingMore=false;
+  if(S.tab==="descobrir"&&!document.querySelector(".card.top.drag"))render()
+}
+function updateSrc(p){const el=document.querySelector('.card[data-id="'+p.id+'"] .src');if(el)el.innerHTML=srcHTML(p)}
+function applyTA(p){const m=TA[p.id];if(m&&m.rating){p.t=[m.rating,m.reviews||0];p.taUrl=m.url}}
+function enrichTop(){
+  if(!LIVE||TA_OFF||S.tab!=="descobrir")return;
+  queue().slice(0,3).forEach(o=>{
+    const p=o.p;if(p.id in TA||p.lat==null)return;
+    TA[p.id]=null;
+    fetch("/api/tripadvisor?name="+encodeURIComponent(p.name)+"&lat="+p.lat+"&lng="+p.lng+"&category="+(p.type==="comer"?"restaurants":"attractions"))
+      .then(r=>{if(r.status===503){TA_OFF=true;return null}return r.ok?r.json():null})
+      .then(j=>{const m=j&&j.match;if(m&&m.rating){TA[p.id]=m;P.forEach(x=>{if(x.id===p.id)applyTA(x)});applyTA(p);updateSrc(p)}})
+      .catch(()=>{})
+  })
+}
+function afterRender(){
+  enrichTop();
+  if(LIVE&&S.tab==="descobrir"&&queue().length<6)loadMore()
+}
+
+/* ---------- Ações ---------- */
+function decide(id,like){
+  const p=byId(id);if(!p)return;
+  if(like)S.saved[id]=p;
+  (like?S.liked:S.passed).push(id);
+  p.likes.concat(p.tags).forEach(t=>{S.w[t]=(S.w[t]||0)+(like?3:-2)});
+  S.hist.push({id,like});save();pushSwipes();
+  if(like)toast("Salvo em Matches");
+  render();
+  if(LIVE&&queue().length<8)loadMore()
+}
+function undo(){
+  const h=S.hist.pop();if(!h)return;
+  const arr=h.like?S.liked:S.passed;const i=arr.lastIndexOf(h.id);if(i>-1)arr.splice(i,1);
+  const p=byId(h.id);if(!p)return;
+  p.likes.concat(p.tags).forEach(t=>{S.w[t]=(S.w[t]||0)-(h.like?3:-2)});
+  save();pushSwipes();render()
+}
+function fly(dir){
+  const c=document.querySelector(".card.top");if(!c)return;
+  c.classList.remove("drag");
+  c.style.transform=`translate(${dir*520}px,40px) rotate(${dir*24}deg)`;
+  const id=c.dataset.id;
+  setTimeout(()=>decide(id,dir>0),220)
+}
+function bindSwipe(){
+  const c=document.querySelector(".card.top");if(!c)return;
+  let x0=0,y0=0,dx=0,on=false;
+  const ln=c.querySelector(".stamp.like"),nn=c.querySelector(".stamp.nope");
+  c.addEventListener("pointerdown",e=>{if(e.target.closest("a"))return;on=true;x0=e.clientX;y0=e.clientY;c.classList.add("drag");try{c.setPointerCapture(e.pointerId)}catch(_){}});
+  c.addEventListener("pointermove",e=>{if(!on)return;dx=e.clientX-x0;const dy=(e.clientY-y0)*.25;
+    c.style.transform=`translate(${dx}px,${dy}px) rotate(${dx/18}deg)`;
+    ln.style.opacity=Math.max(0,Math.min(1,dx/110));nn.style.opacity=Math.max(0,Math.min(1,-dx/110))});
+  const end=()=>{if(!on)return;on=false;
+    if(Math.abs(dx)>110){fly(dx>0?1:-1)}
+    else{c.classList.remove("drag");c.style.transform="";ln.style.opacity=0;nn.style.opacity=0}
+    dx=0};
+  c.addEventListener("pointerup",end);c.addEventListener("pointercancel",end)
+}
+
+/* ---------- Eventos ---------- */
+function toggle(arr,v){const i=arr.indexOf(v);i>-1?arr.splice(i,1):arr.push(v)}
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-tab],[data-act],[data-grp]");if(!t)return;
+  if(t.dataset.tab){const prev=S.tab;S.tab=t.dataset.tab;save();render();window.scrollTo(0,0);if(prev==="perfil"&&S.tab==="descobrir")loadLive();return}
+  if(t.dataset.grp){
+    const g=t.dataset.grp,v=t.dataset.v;
+    if(g==="likes"||g==="values"||g==="diet")toggle(S.prefs[g],v);
+    else if(g==="price")S.prefs.maxPrice=+v;
+    else if(g==="type"){toggle(S.types,v);if(!S.types.length)S.types=[v]}
+    save();
+    if(g==="type")render();
+    else{const y=window.scrollY;render();window.scrollTo(0,y)}
+    return}
+  const a=t.dataset.act;
+  if(a==="start"){S.onboarded=true;S.tab="descobrir";save();render();window.scrollTo(0,0);loadLive()}
+  else if(a==="yes")fly(1);
+  else if(a==="no")fly(-1);
+  else if(a==="undo")undo();
+  else if(a==="unlike"){const id=t.dataset.id;S.liked=S.liked.filter(x=>x!==id);S.hist=S.hist.filter(h=>h.id!==id);save();pushSwipes();render()}
+  else if(a==="reset"){S.liked=[];S.passed=[];S.w={};S.hist=[];save();pushSwipes();render();toast("Aprendizado zerado")}
+  else if(a==="create")createRoom();
+  else if(a==="join"){const f=$("#joincode");joinRoom(f?f.value:"")}
+  else if(a==="leave")leaveRoom();
+  else if(a==="copy"){try{navigator.clipboard.writeText(S.room).then(()=>toast("Código copiado")).catch(()=>toast("Código: "+S.room))}catch(_){toast("Código: "+S.room)}}
+});
+document.addEventListener("input",e=>{
+  if(e.target.id==="dist"){S.prefs.maxDist=+e.target.value;$("#distv").textContent=e.target.value+" km";save()}
+  else if(e.target.id==="r2"){$("#r2v").textContent=e.target.value+" km"}
+});
+document.addEventListener("change",e=>{
+  if(e.target.id!=="r2")return;
+  S.prefs.maxDist=+e.target.value;save();render();
+  if(LIVE&&S.prefs.maxDist*1000>RADIUS)loadLive()
+});
+document.addEventListener("keydown",e=>{
+  if(!S.onboarded||S.tab!=="descobrir")return;
+  if(e.key==="ArrowRight")fly(1);else if(e.key==="ArrowLeft")fly(-1)
+});
+render();
+if(S.onboarded)loadLive();
+(async()=>{
+  try{
+    if(window.claude&&window.claude.use){
+      DB=await window.claude.use("db");USER=await window.claude.use("user");
+      if(USER){ME=await USER.id();canWrite=await USER.can("data.write")}
+      if(DB&&ME&&S.room)subscribeRoom(S.room)
+    }
+  }catch(e){}
+  if(S.tab==="grupo")render()
+})();
+</script>
