@@ -1,5 +1,6 @@
 // Busca lugares reais no Google Places (API nova), dentro do raio escolhido (até 50 km).
-const { googleSearch, sendError, noKey } = require("./_google");
+const { googleSearch, sendError, noKey, getKey } = require("./_google");
+const { gate } = require("./_quota");
 
 const FIELDS = [
   "nextPageToken",
@@ -14,7 +15,7 @@ const FIELDS = [
 ].join(",");
 
 module.exports = async (req, res) => {
-  const key = process.env.GOOGLE_MAPS_API_KEY;
+  const key = getKey();
   if (!key) return noKey(res);
 
   const { q, lat, lng, radius, pageToken } = req.query || {};
@@ -24,6 +25,8 @@ module.exports = async (req, res) => {
       Math.abs(la) > 90 || Math.abs(ln) > 180 || (pageToken && String(pageToken).length > 2000)) {
     return res.status(400).json({ error: "bad_request", message: "Parâmetros inválidos." });
   }
+
+  if (!(await gate(req, res, { kind: "search" }))) return;
 
   // O Google só aceita um retângulo como limite rígido. O app refina para um círculo depois.
   const dLat = ra / 111320;

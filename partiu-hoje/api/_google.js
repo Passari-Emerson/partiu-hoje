@@ -30,6 +30,34 @@ function explain(status, googleStatus, message) {
   return "O Google não conseguiu responder agora. Tente de novo em instantes.";
 }
 
+// Lê uma variável de ambiente sem espaços e sem aspas coladas por engano.
+function cleanEnv(name) {
+  const v = process.env[name];
+  if (!v) return "";
+  return String(v).trim().replace(/^["']+|["']+$/g, "").trim();
+}
+const getKey = () => cleanEnv("GOOGLE_MAPS_API_KEY");
+
+async function googleFail(r) {
+  const j = await r.json().catch(() => ({}));
+  const e = j && j.error ? j.error : {};
+  const err = new Error(e.message || "Falha no Google");
+  err.httpStatus = r.status;
+  err.googleStatus = e.status;
+  err.notFound = r.status === 404;
+  err.hint = explain(r.status, e.status, e.message);
+  return err;
+}
+
+// Busca os dados de um lugar pelo ID. Só pede os campos da faixa mais barata (fieldMask enxuto).
+async function googleGet(key, placeId, fieldMask) {
+  const r = await fetch("https://places.googleapis.com/v1/places/" + encodeURIComponent(placeId) + "?languageCode=pt-BR&regionCode=BR", {
+    headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": fieldMask },
+  });
+  if (!r.ok) throw await googleFail(r);
+  return r.json();
+}
+
 async function googleSearch(key, body, fieldMask) {
   const r = await fetch(SEARCH_URL, {
     method: "POST",
@@ -73,4 +101,4 @@ const noKey = (res) =>
     message: "Falta a variável GOOGLE_MAPS_API_KEY na Vercel. Em Settings > Environment Variables, adicione e faça um novo deploy.",
   });
 
-module.exports = { googleSearch, sendError, noKey, explain };
+module.exports = { googleSearch, googleGet, sendError, noKey, explain, cleanEnv, getKey };

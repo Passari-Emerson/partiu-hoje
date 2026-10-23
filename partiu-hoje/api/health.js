@@ -1,10 +1,30 @@
 // Diagnóstico para quem não programa: abra /api/health no endereço do app.
 // Mostra se a chave existe e se o Google respondeu. Nunca mostra a chave.
-const { googleSearch } = require("./_google");
+const { googleSearch, getKey, cleanEnv } = require("./_google");
+const { cloudConfig } = require("./_quota");
 
 module.exports = async (req, res) => {
-  const key = process.env.GOOGLE_MAPS_API_KEY;
+  const key = getKey();
   res.setHeader("Cache-Control", "no-store");
+  const url = cleanEnv("SUPABASE_URL"), akey = cleanEnv("SUPABASE_ANON_KEY") || cleanEnv("SUPABASE_PUBLISHABLE_KEY");
+  const conta = !url && !akey ? "não configurada (o app funciona só neste aparelho)"
+    : !url ? "falta SUPABASE_URL" : !akey ? "falta SUPABASE_ANON_KEY"
+    : /sb_secret_/.test(akey) ? "ERRO: você colou a chave SECRETA; use a chave pública (anon / publishable)" : "configurada";
+  // Confere se o banco já tem os planos e limites (a função get_plans é pública).
+  let limites = "desligados (sem conta na nuvem, o uso não tem limite)";
+  const c = cloudConfig();
+  if (c.valid) {
+    try {
+      const r = await fetch(c.url + "/rest/v1/rpc/get_plans", { method: "POST", headers: { apikey: c.key, Authorization: "Bearer " + c.key, "Content-Type": "application/json" }, body: "{}" });
+      const j = await r.json().catch(() => null);
+      limites = r.ok && Array.isArray(j) && j.length
+        ? "ativos (" + j.map((x) => x.label + ": " + x.cards + " lugares por dia").join("; ") + ")"
+        : "ERRO: o banco não tem os planos. Rode de novo o arquivo supabase/setup.sql no Supabase";
+    } catch (e) { limites = "não consegui falar com o Supabase agora"; }
+  }
+  const pagamento = ["PREMIUM_WEEK", "PREMIUM_MONTH", "GOLD_WEEK", "GOLD_MONTH"].filter((n) => cleanEnv("CHECKOUT_" + n)).length;
+  const json = res.json.bind(res);
+  res.json = (o) => json(Object.assign({}, o, { conta_na_nuvem: conta, limites_de_uso: limites, links_de_pagamento: pagamento + " de 4 configurados" }));
   if (!key) {
     return res.status(200).json({
       ok: false,

@@ -1,13 +1,15 @@
 // Transforma o nome de uma cidade ou bairro em coordenadas, usando a própria Places API.
-const { googleSearch, sendError, noKey } = require("./_google");
+const { googleSearch, sendError, noKey, getKey } = require("./_google");
+const { gate } = require("./_quota");
 
 module.exports = async (req, res) => {
-  const key = process.env.GOOGLE_MAPS_API_KEY;
+  const key = getKey();
   if (!key) return noKey(res);
   const q = String((req.query && req.query.q) || "").trim();
   if (q.length < 2 || q.length > 80) {
     return res.status(400).json({ error: "bad_request", message: "Digite o nome de uma cidade ou bairro." });
   }
+  if (!(await gate(req, res, { kind: "search" }))) return;
   try {
     const j = await googleSearch(
       key,
