@@ -35,6 +35,13 @@ create table if not exists public.entries (
 
 create index if not exists entries_user_updated_idx on public.entries (user_id, updated_at desc);
 
+-- Modo viagem: a lista pode marcar de qual viagem cada lugar é, e o perfil guarda as viagens (nome, endereço digitado e raio).
+-- O endereço fica como texto que você digitou; as coordenadas não são guardadas (o app busca de novo no Google).
+alter table public.entries  add column if not exists trip text check (trip is null or trip ~ '^[a-z0-9]{4,24}$');
+alter table public.profiles add column if not exists trips jsonb not null default '[]'::jsonb
+  check (jsonb_typeof(trips) = 'array' and jsonb_array_length(trips) <= 10 and octet_length(trips::text) <= 4000);
+alter table public.profiles add column if not exists trips_t bigint not null default 0;
+
 -- ---------------------------------------------------------------- data de atualização automática
 
 create or replace function public.touch_updated_at()
@@ -190,6 +197,20 @@ insert into public.plans (tier, label, cards, lookups, searches, photos, price_w
   ('premium', 'Premium',       60,  30,  60, 3, 5.00, 15.00),
   ('gold',    'Premium Gold', 120,  60, 120, 5, 10.00, 30.00)
 on conflict (tier) do nothing;
+
+-- Recursos extras por plano (você pode ligar e desligar na tabela plans):
+--   can_undo    botão Voltar (desfazer a última decisão)
+--   can_travel  modo viagem (buscar em outra cidade ou endereço, com raio próprio, e guardar a lista da viagem)
+-- Só é criado na primeira vez. Depois disso, o que você editar é mantido.
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'plans' and column_name = 'can_undo') then
+    alter table public.plans add column can_undo boolean not null default false;
+    alter table public.plans add column can_travel boolean not null default false;
+    update public.plans set can_undo = true, can_travel = true where tier in ('premium', 'gold');
+  end if;
+end
+$$;
 
 -- ---------------------------------------------------------------- quem pagou
 create table if not exists public.subscriptions (
@@ -374,6 +395,7 @@ begin
   select expires_at into v_exp from public.subscriptions where user_id = v_uid and expires_at > now();
   return jsonb_build_object(
     'tier', v_tier, 'label', pl.label, 'day', v_day, 'anon', v_tier = 'anon', 'expires_at', v_exp, 'photos', pl.photos,
+    'can_undo', pl.can_undo, 'can_travel', pl.can_travel,
     'cards',    jsonb_build_object('used', c, 'cap', pl.cards),
     'lookups',  jsonb_build_object('used', l, 'cap', pl.lookups),
     'searches', jsonb_build_object('used', s, 'cap', pl.searches));
@@ -389,7 +411,8 @@ security definer
 set search_path = public
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('tier', tier, 'label', label, 'cards', cards, 'lookups', lookups,
-           'searches', searches, 'photos', photos, 'price_week', price_week, 'price_month', price_month)
+           'searches', searches, 'photos', photos, 'price_week', price_week, 'price_month', price_month,
+           'can_undo', can_undo, 'can_travel', can_travel)
            order by case tier when 'anon' then 0 when 'free' then 1 when 'premium' then 2 else 3 end), '[]'::jsonb)
   from public.plans
 $$;

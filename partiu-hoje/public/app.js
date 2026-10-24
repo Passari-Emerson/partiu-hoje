@@ -23,13 +23,30 @@ const CATS=[
 ["drinks","Beber e café","cocktail",["bar de drinks coquetelaria"]],
 ["sorvete e sobremesas","Beber e café","icecream",["sorveteria gelateria","confeitaria doces sobremesas"]],
 ["música ao vivo","Passear","music",["bar com música ao vivo"]],
+["pontos turísticos","Passear","landmark",["pontos turísticos atrações"]],
+["museus e arte","Passear","palette",["museu galeria de arte"]],
+["história e arquitetura","Passear","landmark",["centro histórico igreja histórica monumento"]],
 ["natureza","Passear","mountain",["parques trilhas mirantes"]],
+["passeios de barco","Passear","boat",["passeio de barco"]],
+["vinícolas","Passear","grape",["vinícola degustação de vinhos"]],
+["aventura","Passear","bolt",["turismo de aventura tirolesa rafting"]],
+["diversão e crianças","Passear","star",["parque de diversões zoológico aquário"]],
+["teatro e shows","Passear","music",["teatro casa de shows"]],
 ["feiras","Passear","market",["feira gastronômica feira de rua"]],
-["oficinas","Passear","hat",["oficina workshop culinária"]]];
+["oficinas","Passear","hat",["oficina workshop culinária"]],
+["praias e lagos","Passear","boat",["praia","lago balneário"]],
+["tours guiados","Passear","landmark",["city tour passeio guiado","tour a pé guiado"]],
+["baladas e noite","Passear","cocktail",["balada casa noturna","boate"]],
+["cinema","Passear","star",["cinema"]],
+["shoppings","Passear","market",["shopping center"]],
+["bem-estar e spa","Passear","leaf",["spa day spa massagem"]],
+["jogos e lazer","Passear","bolt",["boliche escape room kart"]]];
 const CAT={};CATS.forEach(c=>{CAT[c[0]]={id:c[0],g:c[1],ic:c[2],q:c[3]}});
 const GROUPS=["Comer","Beber e café","Passear"];
 const GCLASS={"Comer":"comer","Beber e café":"beber","Passear":"passear"};
-const PASSEIO=new Set(["natureza","feiras","oficinas"]);
+const PASSEIO=new Set(["pontos turísticos","museus e arte","história e arquitetura","natureza","passeios de barco","vinícolas","aventura","diversão e crianças","teatro e shows","feiras","oficinas","música ao vivo","praias e lagos","tours guiados","baladas e noite","cinema","shoppings","bem-estar e spa","jogos e lazer"]);
+/* Categorias de passeio em que lugares de comida são aceitos (ex.: feira gastronômica, bar com música). Nas outras, restaurante é descartado. */
+const PASSEIO_FOOD_OK=new Set(["feiras","oficinas","música ao vivo","vinícolas","teatro e shows","baladas e noite"]);
 const typeOf=l=>PASSEIO.has(l)?"passeio":"comer";
 const ALIAS={"oriental":["japonesa","chinesa","coreana","tailandesa"],"bares":["drinks","cerveja artesanal"],"cerveja artesanal":["cerveja preta"]};
 const expandLikes=a=>{const s=new Set(a);a.forEach(x=>(ALIAS[x]||[]).forEach(y=>s.add(y)));return s};
@@ -50,14 +67,24 @@ const TYPE_OK={
 "cafés":["cafe","coffee_shop"],"padarias":["bakery"],"bares":["bar","pub","wine_bar"],
 "cerveja preta":["brewery","pub","bar"],"cerveja artesanal":["brewery"],"drinks":["bar"],
 "sorvete e sobremesas":["ice_cream_shop","dessert_shop","dessert_restaurant"],
-"natureza":["park","hiking_area","tourist_attraction"],"feiras":["farmers_market","market"]};
+"natureza":["park","national_park","state_park","hiking_area","botanical_garden","garden","tourist_attraction"],"feiras":["farmers_market","market"],
+"pontos turísticos":["tourist_attraction","historical_landmark","cultural_landmark","monument","observation_deck"],
+"museus e arte":["museum","art_gallery","cultural_center"],
+"história e arquitetura":["historical_landmark","cultural_landmark","monument","church","place_of_worship"],
+"passeios de barco":["marina","boat_tour_agency","boat_ride"],"vinícolas":["winery"],
+"aventura":["adventure_sports_center","hiking_area","tour_agency"],
+"diversão e crianças":["zoo","aquarium","amusement_park","water_park","wildlife_park","amusement_center"],
+"teatro e shows":["performing_arts_theater","concert_hall","event_venue"],
+"praias e lagos":["beach"],"tours guiados":["tour_agency","travel_agency"],"baladas e noite":["night_club"],
+"cinema":["movie_theater"],"shoppings":["shopping_mall"],"bem-estar e spa":["spa","wellness_center","massage"],
+"jogos e lazer":["bowling_alley","amusement_center","video_arcade","karaoke"]};
 const MAX_JOBS=10,MAX_PAGES=3,MAX_MORE_CALLS=12,START_JOBS=4;
 const PRICE={PRICE_LEVEL_FREE:1,PRICE_LEVEL_INEXPENSIVE:1,PRICE_LEVEL_MODERATE:2,PRICE_LEVEL_EXPENSIVE:3,PRICE_LEVEL_VERY_EXPENSIVE:4};
 
 /* ---------- Estado ---------- */
 const KEY="partiu-hoje-v2";
 const blank=()=>({onboarded:false,prefs:{likes:[],values:[],diet:[],maxPrice:4,maxDist:10},liked:[],passed:[],w:{},hist:[],tab:"descobrir",manual:null,
-  entries:{},synced:{},dirty:{},del:{},cloudUser:null,bannerOff:false});
+  entries:{},synced:{},dirty:{},del:{},cloudUser:null,bannerOff:false,m:{},lw:{},trips:[],trip:null,tripsT:0,tripsDirty:false});
 let S=blank();
 try{const r=localStorage.getItem(KEY);if(r){S=Object.assign(blank(),JSON.parse(r));S.prefs=Object.assign(blank().prefs,S.prefs)}}catch(e){}
 /* Migração da versão anterior: curtidas viram itens "quero ir" da lista. Nome e foto não ficam mais guardados no aparelho (só o ID). */
@@ -103,10 +130,56 @@ const icon=(id,cls)=>`<svg class="ic${cls?" "+cls:""}" aria-hidden="true"><use h
 const catIcon=l=>(CAT[l]&&CAT[l].ic)||"plate";
 
 let P=[],PM=new Map(),JOBS=[],POS=null,FRONT=null;
+/* Modo viagem: S.trips = viagens salvas (nome, endereço digitado e raio). S.trip = a viagem ativa. Só o texto do endereço fica guardado;
+   as coordenadas são buscadas de novo no Google (TPOS vale só até fechar o app). */
+const TPOS=new Map();let TFILTER="all",TRIP_DEL=null,TRIP_FORM=false;
+const newTripId=()=>{const a="abcdefghijklmnopqrstuvwxyz0123456789",b=new Uint8Array(8);crypto.getRandomValues(b);let t="";for(const x of b)t+=a[x%36];return t};
+const activeTrip=()=>S.trip?S.trips.find(t=>t.id===S.trip)||null:null;
+const RAD=()=>{const t=activeTrip();return t?t.km:S.prefs.maxDist};
+// Recursos pagos. Sem conta na nuvem (modo local) tudo fica liberado. Se o banco for antigo e não informar o recurso, não trava ninguém.
+const canUndo=()=>!Cloud.enabled()||!Q||Q.can_undo!==false;
+const canTravel=()=>!Cloud.enabled()||!Q||Q.can_travel!==false;
 /* Limite de uso: Q = quanto a pessoa já usou hoje e qual é o plano (vem do banco). PAYWALL = tela de "chegou ao limite". */
 let Q=null,PAYWALL=null,PLANS=null,PL=null;const VIEWED=new Set(),LIM=new Set();let REG=null;
 let STATUS="idle",ERR=null,LOADING=false,loadingMore=false,MORE_CALLS=0,DIRTY=false,LOADED_KM=0,LOC_OPEN=false,GPS_MSG="",FILTER="";
 const byId=id=>PM.get(id);
+
+/* ---------- Aprendizado: o que você curtiu, avaliou e recusou ensina o app a achar lugares parecidos ---------- */
+/* Só guardamos pesos por categoria e por tipo de lugar (nossos números) e quanto cada lugar já ensinou (um número por ID).
+   Nome, foto e nota do Google não ficam guardados. */
+function featsOf(o){
+  const gt=new Set(o.gt||[]);
+  const f=Object.keys(TYPE_OK).filter(c=>TYPE_OK[c].some(t=>gt.has(t)));
+  if(o.pt)f.push("tipo:"+o.pt);
+  return f
+}
+function featsFor(id){
+  const p=PM.get(id);if(p)return p.fx;
+  const d=DET.get(id);
+  if(d&&!d.gone&&d.primaryType)return featsOf({gt:[d.primaryType].concat(d.types||[]),pt:d.primaryType});
+  return null
+}
+// Quanto este lugar ensina: nota 5 = +1, nota 3 = 0, nota 1 = -1. Quero ir +0,5. Já fui sem nota +0,35. Passei -0,3.
+function lessonOf(id,ps){
+  const e=S.entries[id];
+  if(e)return e.status==="been"?(e.rating==null?0.35:Math.max(-1.5,Math.min(1,(e.rating-3)/2))):0.5;
+  return (ps||new Set(S.passed)).has(id)?-0.3:0
+}
+function learn(id,ps){
+  const f=featsFor(id);if(!f)return false;
+  const w=lessonOf(id,ps),old=S.lw[id]||0,d=w-old;
+  if(Math.abs(d)<1e-9)return false;
+  f.forEach(k=>{S.m[k]=Math.max(-6,Math.min(6,(S.m[k]||0)+d))});
+  if(w)S.lw[id]=w;else delete S.lw[id];
+  return true
+}
+// Revê a lista e os recusados: aprende com o que ainda não foi aprendido (por exemplo, depois que os dados do lugar chegam).
+function relearn(){
+  const ps=new Set(S.passed);let ch=false;
+  S.liked.concat(S.passed).forEach(id=>{if(learn(id,ps))ch=true});
+  if(ch)save();
+  return ch
+}
 
 /* ---------- Pontuação (match com a sua preferência) ---------- */
 function score(p){
@@ -120,18 +193,21 @@ function score(p){
   const vm=p.tags.filter(x=>pr.values.includes(x));
   if(vm.length){s+=Math.min(18,vm.length*7);why.push("Valores em comum: "+vm.slice(0,3).join(", "))}
   if(p.price){if(p.price<=pr.maxPrice){s+=6;if(pr.maxPrice<4)why.push("Dentro do seu orçamento ("+brl(p.price)+")")}else s-=15}
-  s+=(1-Math.min(1,p.dist/Math.max(1,pr.maxDist)))*8;
+  s+=(1-Math.min(1,p.dist/Math.max(1,RAD())))*8;
   if(p.dist<=3)why.push("Pertinho: "+km(p.dist));
   s+=(p.rating-4)*12;if(p.n<30)s-=4;if(p.n>=500)s+=3;
   if(pr.diet.length){if(p.veg&&pr.diet.includes("vegetariano"))s+=8;else if(!p.veg)s-=4}
-  let l=0;p.likes.concat(p.tags).forEach(t=>{l+=S.w[t]||0});
-  if(Math.abs(l)>.5){s+=Math.max(-15,Math.min(15,l));if(l>0)why.push("Parecido com o que você curtiu")}
+  // Aprendizado: lugares parecidos com os que você avaliou bem sobem; parecidos com os que você recusou ou avaliou mal descem.
+  let raw=0,best=null;
+  (p.fx||[]).forEach(k=>{const w=S.m[k]||0;raw+=w;if(w>0&&(!best||w>best.w))best={k,w}});
+  if(Math.abs(raw)>.15)s+=26*Math.tanh(raw/2.2);
+  if(raw>.4&&best)why.push("Parecido com lugares que você gostou: "+(best.k.startsWith("tipo:")?String(p.kind).toLowerCase():best.k))
   return{s:Math.max(5,Math.min(99,Math.round(s))),why:why.slice(0,3)}
 }
 function queue(){
   const done=new Set(S.liked.concat(S.passed));
   const f=FILTER?expandLikes([FILTER]):null;
-  const out=P.filter(p=>!done.has(p.id)&&p.dist<=S.prefs.maxDist&&(!f||p.likes.some(x=>f.has(x))))
+  const out=P.filter(p=>!done.has(p.id)&&p.dist<=RAD()&&(!f||p.likes.some(x=>f.has(x))))
     .map(p=>({p,...score(p)})).sort((a,b)=>b.s-a.s);
   // O card que já está na tela fica na frente, mesmo que novos resultados do Google reordenem a fila.
   // Assim ele não é trocado antes de a pessoa decidir e cada lugar conta uma vez só no limite do dia.
@@ -149,6 +225,16 @@ const askGPS=()=>new Promise(res=>{
     {timeout:10000,maximumAge:300000});
 });
 async function getLocation(){
+  const tr=activeTrip();
+  if(tr){
+    let g=TPOS.get(tr.id);
+    if(!g){
+      const j=await api("/api/geocode?q="+encodeURIComponent(tr.addr));
+      if(j.found){g={lat:j.lat,lng:j.lng,label:tr.name};TPOS.set(tr.id,g)}
+      else{S.trip=null;save();GPS_MSG="Não encontrei o endereço da viagem “"+tr.name+"”. Voltamos para a sua localização."}
+    }
+    if(g){POS=g;return g}
+  }
   if(S.manual){POS=S.manual;return POS}
   const g=await askGPS();
   if(g){POS=g;return g}
@@ -180,13 +266,14 @@ function mapPlace(r,like){
   if(r.reservable)tags.push("aceita reserva");
   const gt=new Set([r.primaryType].concat(r.types||[]).filter(Boolean));
   if(typeOf(like)==="comer"&&!isFood(gt))return null;
+  if(typeOf(like)==="passeio"&&!PASSEIO_FOOD_OK.has(like)&&isFood(gt)&&!(TYPE_OK[like]||[]).some(t=>gt.has(t)))return null;
   const ver=Object.keys(TYPE_OK).filter(c=>TYPE_OK[c].some(t=>gt.has(t)));
   const likes=[like];const wantSet=expandLikes(S.prefs.likes);
   ver.forEach(c=>{if(wantSet.has(c)&&!likes.includes(c))likes.push(c)});
   const photos=(r.photos||[]).slice(0,5).map(x=>({n:x.name,a:(x.authorAttributions&&x.authorAttributions[0]&&x.authorAttributions[0].displayName)||""}));
   const oh=r.currentOpeningHours;
   return{id:String(r.id),type:typeOf(like),name:(r.displayName&&r.displayName.text)||"Sem nome",
-    kind:(r.primaryTypeDisplayName&&r.primaryTypeDisplayName.text)||"Local",likes,ver,
+    kind:(r.primaryTypeDisplayName&&r.primaryTypeDisplayName.text)||"Local",likes,ver,fx:featsOf({gt:gt,pt:r.primaryType}),
     price:PRICE[r.priceLevel]||null,dist:hav(POS.lat,POS.lng,loc.latitude,loc.longitude),lat:loc.latitude,lng:loc.longitude,
     tags,veg:!!r.servesVegetarianFood,rating:r.rating,n:r.userRatingCount||0,
     addr:r.shortFormattedAddress||r.formattedAddress||"",sum:(r.editorialSummary&&r.editorialSummary.text)||"",
@@ -202,7 +289,7 @@ function buildJobs(){
   return jobs.slice(0,MAX_JOBS)
 }
 async function fetchPage(j){
-  const radius=Math.round(Math.min(50,Math.max(1,S.prefs.maxDist))*1000);
+  const radius=Math.round(Math.min(50,Math.max(1,RAD()))*1000);
   const u="/api/places?q="+encodeURIComponent(j.q)+"&lat="+POS.lat+"&lng="+POS.lng+"&radius="+radius+(j.token?"&pageToken="+encodeURIComponent(j.token):"");
   j.started=true;
   const d=await api(u);
@@ -226,8 +313,8 @@ async function loadAll(){
     const rs=await Promise.allSettled(JOBS.slice(0,START_JOBS).map(fetchPage));
     const ok=rs.filter(r=>r.status==="fulfilled");
     if(!ok.length)throw rs[0].reason;
-    ok.forEach(r=>merge(r.value));
-    STATUS="ready";DIRTY=false;LOADED_KM=S.prefs.maxDist;
+    ok.forEach(r=>merge(r.value));relearn();
+    STATUS="ready";DIRTY=false;LOADED_KM=RAD();
     if(!Q&&Cloud.enabled())refreshQuota().then(()=>{if(S.tab==="descobrir"&&!sheetOpen())render()})
   }catch(e){
     if(e&&e.handled){STATUS="ready"}
@@ -245,26 +332,27 @@ async function loadMore(){
   loadingMore=true;MORE_CALLS+=todo.length;
   const rs=await Promise.allSettled(todo.map(fetchPage));
   rs.forEach((r,i)=>{if(r.status==="fulfilled")merge(r.value);else if(!(r.reason&&r.reason.limit)){todo[i].done=true}});
-  loadingMore=false;
+  loadingMore=false;relearn();
   if(S.tab==="descobrir"&&!document.querySelector(".card.front.drag"))render()
 }
 const canMore=()=>{const f=FILTER?expandLikes([FILTER]):null;return !PAYWALL&&MORE_CALLS<MAX_MORE_CALLS&&JOBS.some(j=>!j.done&&(j.token||!j.started)&&(!f||f.has(j.like)))};
 
 /* ---------- Telas ---------- */
-const topbar=()=>`<div class="top"><div class="brand">Partiu Hoje<span class="q">?</span></div>${POS?`<button class="locbtn" data-act="loc" aria-label="Mudar o local da busca">${icon("pin")}<span>${esc(POS.label)} · ${S.prefs.maxDist} km</span></button>`:""}</div>`;
+const topbar=()=>`<div class="top"><div class="brand">Partiu Hoje<span class="q">?</span></div>${POS?`<button class="locbtn" data-act="loc" aria-label="Mudar o local da busca">${icon("pin")}<span>${activeTrip()?icon("plane")+" ":""}${esc(POS.label)} · ${RAD()} km</span></button>`:""}</div>`;
 function tiles(){
   return GROUPS.map(g=>`<div class="group"><span class="label">${g}</span><div class="tiles">${CATS.filter(c=>c[1]===g).map(c=>
     `<button class="tile ${GCLASS[g]}" data-grp="likes" data-v="${esc(c[0])}" aria-pressed="${S.prefs.likes.includes(c[0])}"><span class="w">${icon(c[2])}</span>${esc(c[0])}${icon("check","ck")}</button>`).join("")}</div></div>`).join("")
 }
 const chips=(list,sel,grp)=>`<div class="chips">${list.map(x=>`<button class="chip" data-grp="${grp}" data-v="${esc(x)}" aria-pressed="${sel.includes(x)}">${esc(x)}</button>`).join("")}</div>`;
-function radiusSlider(id){
-  return`<div class="group"><label class="label" for="${id}">Raio de busca: <span class="rangeval rv">${S.prefs.maxDist} km</span></label><input type="range" id="${id}" data-radius min="1" max="50" value="${S.prefs.maxDist}"><span class="credit">Dos lugares perto de você, até 50 km.</span></div>`
+function radiusSlider(id,tr){
+  const v=tr?tr.km:S.prefs.maxDist;
+  return`<div class="group"><label class="label" for="${id}">${tr?"Raio da viagem":"Raio de busca"}: <span class="rangeval rv">${v} km</span></label><input type="range" id="${id}" data-radius${tr?` data-trip="${esc(tr.id)}"`:""} min="1" max="50" value="${v}"><span class="credit">${tr?"Dos lugares perto do endereço da viagem, até 50 km.":"Dos lugares perto de você, até 50 km."}</span></div>`
 }
 function prefsForm(){
   const pr=S.prefs;
   return`${tiles()}
   <div class="group"><span class="label">Valores</span>${chips(VALUES,pr.values,"values")}</div>
-  <div class="group"><span class="label">Restrições alimentares</span>${chips(DIETS,pr.diet,"diet")}</div>
+  <div class="group"><span class="label">Restrições alimentares*</span>${chips(DIETS,pr.diet,"diet")}<span class="credit">* Baseado só no que o próprio restaurante informa ao Google e nas avaliações de clientes. Não é garantia: confirme direto com o local.</span></div>
   <div class="group"><span class="label">Orçamento máximo</span><div class="chips">${[[1,"R$"],[2,"R$$"],[3,"R$$$"],[4,"Sem limite"]].map(([n,t])=>`<button class="chip" data-grp="price" data-v="${n}" aria-pressed="${pr.maxPrice===n}">${t}</button>`).join("")}</div></div>
   ${radiusSlider("dist")}`
 }
@@ -273,13 +361,30 @@ function viewOnboarding(){
   <div class="ob"><h1>Partiu hoje? Deslize até achar o lugar.</h1><p>Escolha o que você curte. O app procura lugares reais no Google perto de você, com fotos e avaliações, e mostra primeiro os que combinam com o seu gosto.</p></div>
   <div class="panel">${prefsForm()}<button class="btn big" data-act="start">${icon("pin")} Buscar lugares perto de mim</button>${Cloud.enabled()&&!Cloud.user()?'<button class="btn ghost" data-act="login">Já tenho conta · Entrar</button>':""}<p class="credit">Usamos sua localização só para buscar lugares próximos. Lugares, fotos e avaliações: Google Maps.</p></div>`
 }
+function tripsHTML(){
+  if(!canTravel())return`<div class="group tripbox locked"><span class="label">${icon("plane")} Modo viagem <span class="pro">Premium</span></span>
+  <p class="sub">Vai viajar? Salve o hotel ou o endereço do destino, escolha o raio e já deslize e guarde lugares antes de chegar. Cada viagem tem a sua lista.</p>
+  <button class="btn" data-act="plans-travel">${icon("lock")} Ver planos</button></div>`;
+  const at=activeTrip();
+  const list=S.trips.map(t=>`<div class="trip${at&&at.id===t.id?" on":""}"><div class="tt"><b>${esc(t.name)}</b><span class="sub">${esc(t.addr)} · ${t.km} km</span></div>
+    <div class="chips">${at&&at.id===t.id?'<span class="curplan">Em uso</span>':`<button class="btn small" data-act="trip-use" data-id="${esc(t.id)}">Usar</button>`}<button class="btn ghost small" data-act="trip-del" data-id="${esc(t.id)}" aria-label="Apagar a viagem ${esc(t.name)}">Apagar</button></div></div>`).join("");
+  const form=TRIP_FORM||!S.trips.length?`<div class="tripform"><label class="label" for="tr-name">Nome da viagem</label><input class="field" id="tr-name" maxlength="40" placeholder="Ex.: São Paulo em dezembro" autocomplete="off">
+    <label class="label" for="tr-addr">Hotel, endereço, bairro ou cidade</label><input class="field" id="tr-addr" maxlength="120" placeholder="Ex.: Av. Paulista 1000, São Paulo" autocomplete="off">
+    <label class="label" for="tr-km">Raio: <span class="rangeval" id="tr-kmv">5 km</span></label><input type="range" id="tr-km" min="1" max="50" value="5">
+    <button class="btn" data-act="trip-save">${icon("plane")} Salvar e buscar lá</button></div>`:`<button class="btn ghost" data-act="trip-new">+ Nova viagem</button>`;
+  return`<div class="group tripbox"><span class="label">${icon("plane")} Modo viagem</span>
+  <p class="sub">Busque lugares em outra cidade e guarde na lista da viagem antes de chegar.</p>${list}${form}</div>`
+}
 function locPanel(needs){
+  const at=activeTrip();
+  const cityRow=`<div class="row"><input class="field" id="city" placeholder="Ex.: Porto Alegre, Ibirubá, Gramado" maxlength="60" autocomplete="off" aria-label="Cidade ou bairro"><button class="btn ghost" data-act="city">Buscar</button></div>`;
+  // Sem GPS qualquer pessoa pode digitar a cidade. Com GPS, buscar em outra cidade faz parte do Modo viagem.
+  const manual=needs||canTravel()?cityRow:"";
   return`<div class="panel"><div class="group"><h2 style="font-size:22px">${needs?"Precisamos saber onde você está":"Onde buscar"}</h2>
-  <p class="sub">${needs?esc(GPS_MSG||"Não consegui pegar a sua localização."):"Use o GPS do celular ou digite uma cidade ou bairro, e escolha o raio de busca."}</p>
-  ${radiusSlider("r2")}
-  <button class="btn" data-act="gps">${icon("pin")} Usar minha localização</button>
-  <div class="row"><input class="field" id="city" placeholder="Ex.: Porto Alegre, Ibirubá, Gramado" maxlength="60" autocomplete="off" aria-label="Cidade ou bairro"><button class="btn ghost" data-act="city">Buscar</button></div>
-  <p class="sub" id="locmsg" aria-live="polite"></p></div></div>`
+  <p class="sub">${needs?esc(GPS_MSG||"Não consegui pegar a sua localização."):at?"Você está no modo viagem: “"+esc(at.name)+"”.":"Use o GPS do celular"+(canTravel()?" ou digite uma cidade ou bairro":"")+", e escolha o raio de busca."}</p>
+  ${radiusSlider("r2",at)}
+  <button class="btn" data-act="${at?"trip-exit":"gps"}">${icon("pin")} ${at?"Sair da viagem e usar minha localização":"Usar minha localização"}</button>
+  ${manual}<p class="sub" id="locmsg" aria-live="polite"></p></div>${needs?"":tripsHTML()}</div>`
 }
 function skeleton(title,sub){
   return`<div class="skel" role="status"><div class="a">${icon("pin")}</div><div class="b"><h2>${title}</h2><p class="sub">${sub}</p></div></div>`
@@ -297,7 +402,7 @@ function cardHTML(o,depth){
   const meta=[esc(p.kind),p.price?brl(p.price):"",km(p.dist)].filter(Boolean).join(" · ");
   const openPill=p.open===true?'<span class="pill open">Aberto agora</span>':p.open===false?'<span class="pill closed">Fechado agora</span>':"";
   const pl=photoList(p),ph=pl[photoIdx(p,pl)];
-  const dietNote=S.prefs.diet.length&&!(p.veg&&S.prefs.diet.every(d=>d==="vegetariano"))?'<p class="note">Confirme suas restrições alimentares direto com o local.</p>':"";
+  const dietNote=S.prefs.diet.length?'<p class="note">* Restrição alimentar: '+(p.veg&&S.prefs.diet.includes("vegetariano")?"o Google indica que serve comida vegetariana, ":"")+'segundo informações do restaurante e avaliações de clientes, sem garantia. Confirme direto com o local.</p>':"";
   return`<article class="card${depth===0?" front":""}" data-depth="${depth}" data-id="${esc(p.id)}" style="--h:${p.h}" ${depth===0?'tabindex="0" aria-label="'+esc(p.name)+'. Deslize para a direita para curtir ou para a esquerda para passar."':'aria-hidden="true"'}>
   <div class="hero">${heroHTML(p,depth)}<div class="tags-top">${openPill}</div>
     <div class="match" aria-label="${o.s}% de match"><b>${o.s}</b><small>% match</small></div>
@@ -321,23 +426,23 @@ function viewDeck(){
   if(STATUS==="needloc"||LOC_OPEN)return head+locPanel(STATUS==="needloc");
   if(STATUS==="error")return head+`<div class="notice err" role="alert"><h2>Não consegui buscar lugares reais</h2><p>${esc(ERR&&ERR.message)}</p><div class="chips"><button class="btn" data-act="retry">Tentar de novo</button><a class="btn ghost" href="/api/health" target="_blank" rel="noopener">Ver diagnóstico</a></div><p class="credit">Para não enganar você, o app nunca mostra lugares de exemplo.</p></div>`;
   if(STATUS!=="ready")return head+skeleton("Preparando…","");
-  if(PAYWALL)return head+qbarHTML()+paywallHTML();
+  if(PAYWALL)return head+qbarHTML()+tripBarHTML()+paywallHTML();
   const filters=`<div class="fscroll"><button class="fchip" data-act="filter" data-v="" aria-pressed="${FILTER===""}">Todas</button>${S.prefs.likes.map(l=>`<button class="fchip" data-act="filter" data-v="${esc(l)}" aria-pressed="${FILTER===l}">${icon(catIcon(l))}${esc(l)}</button>`).join("")}</div>`;
   const q=queue();
   let body;
   if(q.length){
     body=`<div class="deck" id="deck">${q.slice(0,3).map((o,i)=>cardHTML(o,i)).reverse().join("")}</div>
-    <div class="actions"><button class="round undo" data-act="undo" aria-label="Desfazer" ${S.hist.length?"":"disabled"}>${icon("undo")}</button>
+    <div class="actions"><button class="round undo${canUndo()?"":" locked"}" data-act="undo" aria-label="${canUndo()?"Desfazer":"Voltar: recurso do plano Premium"}" ${S.hist.length||!canUndo()?"":"disabled"}>${icon("undo")}${canUndo()?"":icon("lock","lk")}</button>
     <button class="round no" data-act="no" aria-label="Passar">${icon("x")}</button>
     <button class="round been" data-act="been" aria-label="Já fui neste lugar">${icon("check")}<small>Já fui</small></button>
     <button class="round yes" data-act="yes" aria-label="Quero ir (curtir)">${icon("heart")}</button></div>
-    <p class="credit" style="text-align:center">${P.filter(p=>p.dist<=S.prefs.maxDist).length} lugares reais em ${S.prefs.maxDist} km. Toque na foto para ver mais. Dados: Google Maps.</p>`
+    <p class="credit" style="text-align:center">${P.filter(p=>p.dist<=RAD()).length} lugares reais em ${RAD()} km. Toque na foto para ver mais. Dados: Google Maps.</p>`
   }else if(loadingMore||canMore()){
     body=skeleton("Buscando mais lugares…","Procurando além dos primeiros resultados.")
   }else{
     body=`<div class="notice"><h2>Acabaram as opções</h2><p>Você viu tudo que o Google trouxe para esses filtros neste raio. Aumente o raio (vai até 50 km), escolha outras categorias ou mude o local.</p><div class="chips"><button class="btn" data-tab="perfil">Ajustar categorias</button><button class="btn ghost" data-act="loc">Mudar local</button></div></div>`
   }
-  return head+qbarHTML()+filters+body
+  return head+qbarHTML()+tripBarHTML()+filters+body
 }
 /* ---------- Limite de uso, aviso e planos ---------- */
 const planOf=t=>(PLANS||[]).find(x=>x.tier===t);
@@ -347,6 +452,7 @@ function qbarHTML(){
   const txt=Q.anon?c.used+" de "+c.cap+" lugares grátis":c.used+" de "+c.cap+" lugares hoje";
   return`<div class="qbar${low?" low":""}" id="qbar"><div class="qin"><div class="qtxt"><b>${txt}</b><span class="qtier">${esc(Q.label)}</span></div><div class="qtrack" role="progressbar" aria-label="${txt}" aria-valuemin="0" aria-valuemax="${c.cap}" aria-valuenow="${c.used}"><i style="width:${pct}%"></i></div></div><button class="btn ghost small" data-act="plans">Planos</button></div>`
 }
+const tripBarHTML=()=>{const t=activeTrip();return t?`<div class="tripbar"><span>${icon("plane")} Modo viagem: <b>${esc(t.name)}</b> · ${t.km} km</span><button class="btn ghost small" data-act="trip-exit">Sair</button></div>`:""};
 function updatePill(){const e=$("#qbar");if(e&&Q)e.outerHTML=qbarHTML()}
 function setPaywall(reason,info){
   PAYWALL={reason,tier:(info&&info.tier)||(Q&&Q.tier)||"free"};
@@ -379,8 +485,8 @@ function paywallHTML(){
 }
 async function loadPlans(){try{PLANS=await Cloud.plans()}catch(e){}}
 const money=n=>"R$ "+Number(n).toFixed(2).replace(".",",");
-async function openPlans(){
-  PL={per:"month",err:""};
+async function openPlans(reason){
+  PL={per:"month",err:"",reason:reason||""};
   openSheet(plansHTML());
   if(!PLANS){await loadPlans();if(!PLANS&&PL)PL.err="Não consegui carregar os planos agora. Tente de novo em instantes."}
   if(PL)paintSheet(plansHTML())
@@ -396,6 +502,8 @@ function plansHTML(){
   const cards=PLANS.filter(x=>x.tier!=="anon").map(x=>{
     const price=x.tier==="free"?"Grátis":money(per==="week"?x.price_week:x.price_month)+`<small> / ${per==="week"?"semana":"mês"}</small>`;
     const feats=[`${x.cards} lugares por dia`,`${x.photos} fotos por lugar`,`${x.lookups} lugares da lista por dia`];
+    if(x.can_undo)feats.push("Botão Voltar (desfaz a última decisão)");
+    if(x.can_travel)feats.push("Modo viagem: outra cidade ou endereço, com a lista da viagem");
     let btn="";
     if(x.tier==="free")btn=cur==="free"||cur==="anon"?`<span class="curplan">${cur==="anon"?"Visitante":"Seu plano atual"}</span>`:"";
     else if(cur===x.tier)btn=`<span class="curplan">Seu plano atual${exp?" · até "+exp:""}</span>`;
@@ -403,7 +511,7 @@ function plansHTML(){
     else btn=`<button class="btn ghost" disabled>Em breve</button>`;
     return`<div class="plan ${x.tier}${cur===x.tier?" on":""}"><div class="ptop"><h3>${esc(x.label)}</h3><div class="pprice">${price}</div></div><ul>${feats.map(f=>`<li>${icon("check")}${f}</li>`).join("")}</ul>${btn}</div>`
   }).join("");
-  return`${head}<p class="sub">O contador de lugares zera todo dia à meia-noite (horário de Brasília).</p>${seg}<div class="plans">${cards}</div>${anyLink?'<p class="credit">Depois do pagamento, o plano é liberado na sua conta. Use o mesmo e-mail do login.</p>':'<p class="credit">O pagamento ainda não está ligado neste app.</p>'}<button class="btn ghost" data-act="sheet-close">Fechar</button>`
+  return`${head}${PL.reason==="undo"?'<p class="hint">O botão <b>Voltar</b> desfaz a última decisão. Ele faz parte dos planos Premium.</p>':PL.reason==="travel"?'<p class="hint">O <b>Modo viagem</b> faz parte dos planos Premium.</p>':""}<p class="sub">O contador de lugares zera todo dia à meia-noite (horário de Brasília).</p>${seg}<div class="plans">${cards}</div>${anyLink?'<p class="credit">Depois do pagamento, o plano é liberado na sua conta. Use o mesmo e-mail do login.</p>':'<p class="credit">O pagamento ainda não está ligado neste app.</p>'}<button class="btn ghost" data-act="sheet-close">Fechar</button>`
 }
 function buyPlan(tier){
   const co=(Cloud.cfg&&Cloud.cfg.checkout)||{},link=co[tier]&&co[tier][PL?PL.per:"month"];
@@ -477,6 +585,7 @@ async function ensureDetails(ids){
     chunk.forEach(id=>{DET_BUSY.delete(id);if(!failed&&!DET_ERR&&!DET.has(id)&&!LIM.has(id))DET.set(id,{id,gone:true})})
   }
   try{sessionStorage.setItem("ph-det",JSON.stringify([...DET.values()].slice(-400)))}catch(e){}
+  relearn();
   if(!document.querySelector(".card.front.drag")&&(FR||S.tab==="matches"))render()
 }
 const starsHTML=(r,inter)=>{
@@ -496,17 +605,25 @@ let LFILTER="all",LSHOW=20;
 const sortedEntries=()=>Object.keys(S.entries).map(id=>Object.assign({id},S.entries[id])).sort((a,b)=>b.t-a.t);
 function listItem(e){
   const inf=info(e.id);
-  const dist=POS&&inf&&inf.lat!=null?hav(POS.lat,POS.lng,inf.lat,inf.lng):null;
+  // A distância só faz sentido a partir de onde a pessoa está buscando agora: lugares de uma viagem só mostram distância dentro dessa viagem.
+  const sameCtx=(e.trip||null)===(S.trip||null);
+  const dist=sameCtx&&POS&&inf&&inf.lat!=null?hav(POS.lat,POS.lng,inf.lat,inf.lng):null;
+  const tr=e.trip?S.trips.find(x=>x.id===e.trip):null;
   const status=e.status==="been"?`<div class="st2"><span class="chip-s been">${icon("check")} Já fui</span>${e.rating!=null?`${starsHTML(e.rating)}<b class="rv2">${fmt(e.rating)}</b>`:'<span class="sub">sem nota</span>'}</div>`:`<div class="st2"><span class="chip-s want">${icon("heart")} Quero ir</span></div>`;
   const body=!inf?`<h3 class="skeltxt">Carregando…</h3>`:inf.limited?`<h3>Disponível amanhã</h3><div class="m">Você chegou ao limite de consultas de hoje.</div>`:inf.gone?`<h3>Lugar indisponível</h3><div class="m">O Google não encontrou mais este lugar.</div>`:
-    `<h3>${esc(inf.name)}</h3><div class="m">${esc(inf.kind)}${dist!=null?" · "+km(dist):""}${inf.closed?" · fechado definitivamente":""}</div>`;
+    `<h3>${esc(inf.name)}</h3><div class="m">${esc(inf.kind)}${dist!=null?" · "+km(dist):""}${inf.closed?" · fechado definitivamente":""}</div>${tr?`<div class="triptag">${icon("plane")} ${esc(tr.name)}</div>`:""}`;
   return`<div class="item">${thumbHTML(inf,e.id)}<div class="t">${body}${status}${e.note?`<p class="notep">${esc(e.note)}</p>`:""}
   <div class="go"><button class="btn small${e.status==="want"?"":" ghost"}" data-act="edit" data-id="${esc(e.id)}">${e.status==="want"?"Já fui":"Editar"}</button>${mapLink(inf)}</div></div></div>`
+}
+function tripFilterHTML(){
+  const opts=[["all","Todos os lugares"],["home","Minha cidade"]].concat(S.trips.map(t=>[t.id,t.name]));
+  return`<div class="fscroll" role="group" aria-label="Filtrar por viagem">${opts.map(([v,t])=>`<button class="fchip" data-act="tfilter" data-v="${esc(v)}" aria-pressed="${TFILTER===v}">${v!=="all"&&v!=="home"?icon("plane"):""}${esc(t)}</button>`).join("")}</div>`
 }
 function viewMatches(){
   const all=sortedEntries();
   const nw=all.filter(e=>e.status==="want").length,nb=all.length-nw;
-  const f=all.filter(e=>LFILTER==="all"||e.status===LFILTER);
+  if(TFILTER!=="all"&&TFILTER!=="home"&&!S.trips.some(t=>t.id===TFILTER))TFILTER="all";
+  const f=all.filter(e=>(LFILTER==="all"||e.status===LFILTER)&&(TFILTER==="all"||(TFILTER==="home"?!e.trip||!S.trips.some(t=>t.id===e.trip):e.trip===TFILTER)));
   const vis=f.slice(0,LSHOW);
   const seg=[["all","Todos",all.length],["want","Quero ir",nw],["been","Já fui",nb]].map(([v,t,n])=>`<button class="segb" data-act="lfilter" data-v="${v}" aria-pressed="${LFILTER===v}">${t} <span class="cnt">${n}</span></button>`).join("");
   const banner=!Cloud.user()&&Cloud.enabled()&&all.length&&!S.bannerOff?`<div class="banner"><div><b>Salve sua lista na nuvem</b><p class="sub">Entre para não perder seus lugares ao trocar de celular e para poder compartilhar com amigos.</p></div><div class="chips"><button class="btn small" data-act="login">Entrar</button><button class="btn ghost small" data-act="bannerx">Agora não</button></div></div>`:"";
@@ -514,7 +631,7 @@ function viewMatches(){
   if(!all.length)body=`<div class="notice"><h2>Sua lista está vazia</h2><p>Curta lugares na aba Descobrir para guardar aqui. Depois você marca onde já foi, dá uma nota de 0 a 5 e escreve uma anotação.</p><div><button class="btn" data-tab="descobrir">Começar a deslizar</button></div></div>`;
   else if(!f.length)body=`<div class="notice"><p>Nenhum lugar nessa seleção.</p></div>`;
   else body=`<div class="list">${vis.map(listItem).join("")}</div>${f.length>vis.length?`<button class="btn ghost" data-act="lmore">Mostrar mais (${f.length-vis.length})</button>`:""}<p class="credit">Dados e fotos: Google Maps. Só o código de cada lugar fica guardado; nome e foto são buscados de novo no Google.</p>`;
-  return`<div class="top"><h1 style="font-size:28px">Minha lista</h1><button class="btn small" data-act="share">${icon("share")} Compartilhar</button></div>${banner}${all.length?`<div class="seg" role="group" aria-label="Filtrar lista">${seg}</div>`:""}${detErrHTML()}${limitNoticeHTML()}${body}`
+  return`<div class="top"><h1 style="font-size:28px">Minha lista</h1><button class="btn small" data-act="share">${icon("share")} Compartilhar</button></div>${banner}${all.length?`<div class="seg" role="group" aria-label="Filtrar lista">${seg}</div>`:""}${all.length&&S.trips.length?tripFilterHTML():""}${detErrHTML()}${limitNoticeHTML()}${body}`
 }
 const planLine=()=>Q&&Cloud.enabled()?`<p class="sub">Plano: <b>${esc(Q.label)}</b>${Q.expires_at?" até "+new Date(Q.expires_at).toLocaleDateString("pt-BR"):""} · ${Q.cards.used} de ${Q.cards.cap} lugares ${Q.anon?"grátis":"hoje"}.</p><div class="chips"><button class="btn small ghost" data-act="plans">Ver planos</button></div>`:"";
 function accountPanel(){
@@ -531,7 +648,7 @@ function accountPanel(){
 function viewProfile(){
   return`<div class="top"><h1 style="font-size:28px">Seu perfil</h1></div>${accountPanel()}<div class="panel">${prefsForm()}
   <button class="btn big" data-act="apply">${DIRTY?"Aplicar e buscar de novo":"Buscar de novo"}</button>
-  <div class="group"><span class="label">Aprendizado</span><p class="sub">Cada curtida e cada "passo" muda a ordem dos próximos cards. Você já avaliou ${S.liked.length+S.passed.length} lugares. Sua lista não é apagada por aqui.</p>
+  <div class="group"><span class="label">Aprendizado</span><p class="sub">O app aprende com o que você curte, passa e avalia: lugares parecidos com os que você deu nota alta aparecem antes, e os parecidos com os que você avaliou mal ou passou ficam para depois. Você já decidiu sobre ${S.liked.length+S.passed.length} lugares. Zerar apaga só o que aprendeu com os "passo"; sua lista e suas notas continuam ensinando e não são apagadas.</p>
   <button class="btn ghost" data-act="reset">Zerar aprendizado e recusados</button></div>
   <p class="credit"><a href="/privacidade.html" target="_blank" rel="noopener">Privacidade e seus dados</a></p></div>`
 }
@@ -542,7 +659,7 @@ function render(){
   app.innerHTML=!S.onboarded?viewOnboarding():({descobrir:viewDeck,matches:viewMatches,perfil:viewProfile})[S.tab]();
   document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===S.tab?"page":"false"));
   $("#mcount").textContent=S.liked.length?"Lista ("+S.liked.length+")":"Lista";
-  if(S.onboarded&&S.tab==="matches")ensureDetails(sortedEntries().filter(e=>LFILTER==="all"||e.status===LFILTER).slice(0,LSHOW).map(e=>e.id));
+  if(S.onboarded&&S.tab==="matches")ensureDetails(sortedEntries().filter(e=>(LFILTER==="all"||e.status===LFILTER)&&(TFILTER==="all"||(TFILTER==="home"?!e.trip||!S.trips.some(t=>t.id===e.trip):e.trip===TFILTER))).slice(0,LSHOW).map(e=>e.id));
   if(S.onboarded&&S.tab==="descobrir"&&STATUS==="ready"){bindSwipe();touchFront();if(queue().length<8)loadMore()}
   else hydratePhotos()
 }
@@ -555,18 +672,17 @@ function setEntry(id,patch){
   const e=S.entries[id]||{status:"want",rating:null,note:"",t:0};
   Object.assign(e,patch,{t:Date.now()});S.entries[id]=e;
   if(!S.liked.includes(id))S.liked.push(id);
-  S.dirty[id]=1;delete S.del[id];save();Sync.schedule()
+  S.dirty[id]=1;delete S.del[id];learn(id);save();Sync.schedule()
 }
 function dropEntry(id){
   delete S.entries[id];S.liked=S.liked.filter(x=>x!==id);S.hist=S.hist.filter(h=>h.id!==id);delete S.dirty[id];
   if(S.synced[id])S.del[id]=Date.now();
-  save();Sync.schedule()
+  learn(id);save();Sync.schedule()
 }
 function decide(id,like,been){
   const p=byId(id);if(!p)return;
-  if(like){setEntry(id,been?{status:"been"}:{status:"want"})}else S.passed.push(id);
-  p.likes.concat(p.tags||[]).forEach(t=>{S.w[t]=(S.w[t]||0)+(like?3:-2)});
-  S.hist.push({id,like});save();
+  if(like){const tag=S.entries[id]?{}:{trip:S.trip||null};setEntry(id,Object.assign(been?{status:"been"}:{status:"want"},tag))}else S.passed.push(id);
+  S.hist.push({id,like});learn(id);save();
   if(like&&!been)toast("Salvo na sua lista");
   render();
   if(like&&been)openEdit(id,true)
@@ -575,7 +691,7 @@ function undo(){
   const h=S.hist.pop();if(!h)return;
   if(h.like)dropEntry(h.id);else{const i=S.passed.lastIndexOf(h.id);if(i>-1)S.passed.splice(i,1)}
   const p=byId(h.id);
-  if(p)p.likes.concat(p.tags||[]).forEach(t=>{S.w[t]=(S.w[t]||0)-(h.like?3:-2)});
+  learn(h.id);
   if(p)FRONT=h.id;
   save();render()
 }
@@ -614,6 +730,38 @@ function bindSwipe(){
   c.addEventListener("pointerup",end);c.addEventListener("pointercancel",end)
 }
 const toggle=(arr,v)=>{const i=arr.indexOf(v);i>-1?arr.splice(i,1):arr.push(v)};
+function tripsChanged(){S.tripsT=Date.now();S.tripsDirty=true;save();Sync.schedule()}
+async function saveTrip(){
+  const msg=$("#locmsg"),say=t=>{if(msg)msg.textContent=t};
+  if(!canTravel()){openPlans("travel");return}
+  const name=($("#tr-name")||{}).value.trim(),addr=($("#tr-addr")||{}).value.trim(),km=Math.max(1,Math.min(50,Math.round(+($("#tr-km")||{}).value||5)));
+  if(!name||name.length>40||addr.length<3||addr.length>120){say("Dê um nome à viagem e digite o hotel, endereço, bairro ou cidade.");return}
+  if(S.trips.length>=10){say("Você já tem 10 viagens. Apague uma para criar outra.");return}
+  say("Procurando o endereço…");
+  try{
+    const j=await api("/api/geocode?q="+encodeURIComponent(addr));
+    if(!j.found){say("Não encontrei esse endereço. Tente incluir a cidade e o estado, por exemplo: Av. Paulista 1000, São Paulo SP.");return}
+    const tr={id:newTripId(),name,addr,km,t:Date.now()};
+    S.trips.push(tr);TPOS.set(tr.id,{lat:j.lat,lng:j.lng,label:name});S.trip=tr.id;TRIP_FORM=false;tripsChanged();LOC_OPEN=false;loadAll()
+  }catch(e){say((e&&e.message)||"Algo deu errado. Tente de novo.")}
+}
+function useTrip(id){
+  if(!canTravel()){openPlans("travel");return}
+  if(!S.trips.some(t=>t.id===id))return;
+  S.trip=id;save();LOC_OPEN=false;loadAll()
+}
+function exitTrip(){S.trip=null;save();LOC_OPEN=false;loadAll()}
+function delTrip(id){
+  const had=S.trips.some(t=>t.id===id);closeSheet();
+  if(!had)return;
+  S.trips=S.trips.filter(t=>t.id!==id);TPOS.delete(id);
+  Object.keys(S.entries).forEach(k=>{if(S.entries[k].trip===id){S.entries[k].trip=null;S.entries[k].t=Date.now();S.dirty[k]=1}});
+  if(TFILTER===id)TFILTER="all";
+  const wasActive=S.trip===id;if(wasActive)S.trip=null;
+  tripsChanged();
+  if(wasActive){LOC_OPEN=false;loadAll()}else render();
+  toast("Viagem apagada")
+}
 async function setCity(){
   const el=$("#city"),msg=$("#locmsg");const q=el?el.value.trim():"";
   if(q.length<2){if(msg)msg.textContent="Digite o nome de uma cidade ou bairro.";return}
@@ -640,22 +788,32 @@ document.addEventListener("click",e=>{
   else if(a==="yes")fly(1);
   else if(a==="been")fly(1,true);
   else if(a==="no")fly(-1);
-  else if(a==="undo")undo();
+  else if(a==="undo"){if(canUndo())undo();else openPlans("undo")}
   else if(a==="filter"){FILTER=t.dataset.v||"";render()}
   else if(a==="loc"){LOC_OPEN=!LOC_OPEN;render();if(LOC_OPEN){const c=$("#city");if(c)c.focus()}}
   else if(a==="gps"){S.manual=null;save();LOC_OPEN=false;loadAll()}
   else if(a==="city")setCity();
-  else if(a==="reset"){S.passed=[];S.w={};S.hist=[];save();render();toast("Aprendizado zerado")}
+  else if(a==="trip-new"){TRIP_FORM=true;render();const n=$("#tr-name");if(n)n.focus()}
+  else if(a==="trip-save")saveTrip();
+  else if(a==="trip-use")useTrip(t.dataset.id);
+  else if(a==="trip-exit")exitTrip();
+  else if(a==="trip-del"){const tr=S.trips.find(x=>x.id===t.dataset.id);if(tr){TRIP_DEL=tr.id;confirmSheet("Apagar a viagem “"+tr.name+"”?","Os lugares que você guardou nela continuam na sua lista, só deixam de ter a marca da viagem.","trip-del-yes","Apagar viagem")}}
+  else if(a==="plans-travel")openPlans("travel");
+  else if(a==="tfilter"){TFILTER=t.dataset.v||"all";LSHOW=20;render()}
+  else if(a==="reset"){S.passed=[];S.w={};S.m={};S.lw={};S.hist=[];relearn();save();render();toast("Aprendizado zerado")}
   else if(!sheetAction(a,t))uiAction(a,t)
 });
 document.addEventListener("input",e=>{
+  if(e.target.id==="tr-km"){const o=$("#tr-kmv");if(o)o.textContent=e.target.value+" km"}
   if(e.target.matches&&e.target.matches("input[data-radius]")){
     document.querySelectorAll(".rv").forEach(x=>x.textContent=e.target.value+(x.tagName==="B"?" km":" km"))
   }
 });
 document.addEventListener("change",e=>{
   if(!(e.target.matches&&e.target.matches("input[data-radius]")))return;
-  const v=+e.target.value;S.prefs.maxDist=v;save();
+  const v=+e.target.value;
+  if(e.target.dataset.trip){const tr=S.trips.find(x=>x.id===e.target.dataset.trip);if(tr){tr.km=v;tr.t=Date.now();tripsChanged()}}
+  else{S.prefs.maxDist=v;save()}
   if(S.tab==="descobrir"&&STATUS==="ready"){
     if(v>LOADED_KM&&!LOADING)loadAll();else render()
   }else{if(v>LOADED_KM)DIRTY=true}
@@ -804,14 +962,14 @@ async function doSignOut(){
   try{await Sync.run()}catch(e){}
   await Cloud.signOut();
   // A lista está na nuvem; neste aparelho ela é removida para não ficar na tela de outra pessoa.
-  S.entries={};S.liked=[];S.synced={};S.dirty={};S.del={};S.cloudUser=null;save();Sync.state="idle";
+  S.entries={};S.liked=[];S.synced={};S.dirty={};S.del={};S.cloudUser=null;S.trips=[];S.trip=null;S.tripsT=0;S.tripsDirty=false;save();Sync.state="idle";
   Q=null;PAYWALL=null;VIEWED.clear();LIM.clear();PHC.clear();
   closeSheet();render();toast("Você saiu");
   refreshQuota().then(()=>render())
 }
 async function doDeleteAccount(){
   try{await Cloud.deleteAccount()}catch(e){const m=$("#cf-msg");if(m){m.hidden=false;m.textContent=e.message.includes("function")||/delete_my_account/.test(e.detail||"")?"Rode de novo o supabase/setup.sql para ativar a exclusão de conta.":e.message}return}
-  S.entries={};S.liked=[];S.synced={};S.dirty={};S.del={};S.cloudUser=null;save();Sync.state="idle";
+  S.entries={};S.liked=[];S.synced={};S.dirty={};S.del={};S.cloudUser=null;S.trips=[];S.trip=null;S.tripsT=0;S.tripsDirty=false;save();Sync.state="idle";
   Q=null;PAYWALL=null;VIEWED.clear();LIM.clear();PHC.clear();
   closeSheet();render();toast("Conta excluída")
 }
@@ -829,6 +987,7 @@ function sheetAction(a,t){
   if(a.startsWith("s-")){shareAct(a);return true}
   if(a==="out-yes"){doSignOut();return true}
   if(a==="del-yes"){doDeleteAccount();return true}
+  if(a==="trip-del-yes"){delTrip(TRIP_DEL);return true}
   return false
 }
 function uiAction(a,t){
@@ -866,6 +1025,18 @@ const Sync={state:"idle",err:"",timer:null,running:false,again:false,last:0,
     if(!Cloud.enabled()||!Cloud.user())return;
     clearTimeout(Sync.timer);Sync.timer=setTimeout(()=>Sync.run(),900);Sync.ui()
   },
+  // Viagens: vale a versão mais recente (data do último ajuste), no perfil da nuvem.
+  async trips(){
+    // Não depende do plano: logo depois do login o contador ainda é o de visitante e as viagens da conta precisam chegar.
+    const r=await Cloud.getTrips();
+    const rt=r?Number(r.trips_t)||0:0;
+    if(r&&rt>S.tripsT&&!S.tripsDirty){
+      S.trips=(Array.isArray(r.trips)?r.trips:[]).filter(t=>t&&/^[a-z0-9]{4,24}$/.test(t.id||"")).slice(0,10).map(t=>({id:t.id,name:String(t.name||"Viagem").slice(0,40),addr:String(t.addr||"").slice(0,120),km:Math.max(1,Math.min(50,Math.round(+t.km||5))),t:rt}));
+      S.tripsT=rt;if(S.trip&&!S.trips.some(t=>t.id===S.trip))S.trip=null
+    }else if(S.tripsDirty||(S.trips.length&&S.tripsT>rt)){
+      await Cloud.saveTrips(S.trips,S.tripsT);S.tripsDirty=false
+    }
+  },
   async run(){
     const u=Cloud.user();
     if(!Cloud.enabled()||!u)return;
@@ -884,7 +1055,7 @@ const Sync={state:"idle",err:"",timer:null,running:false,again:false,last:0,
         const rt=Date.parse(r.updated_at)||0,loc=S.entries[id];
         delete S.del[id];
         if(!loc||!S.dirty[id]||rt>loc.t){
-          S.entries[id]={status:r.status==="been"?"been":"want",rating:r.rating==null?null:Number(r.rating),note:r.note||"",t:rt};
+          S.entries[id]={status:r.status==="been"?"been":"want",rating:r.rating==null?null:Number(r.rating),note:r.note||"",t:rt,trip:/^[a-z0-9]{4,24}$/.test(r.trip||"")?r.trip:null};
           if(!S.liked.includes(id))S.liked.push(id);delete S.dirty[id]
         }
         S.synced[id]=1
@@ -899,10 +1070,11 @@ const Sync={state:"idle",err:"",timer:null,running:false,again:false,last:0,
       Object.keys(S.del).forEach(id=>{if(!remote.has(id)||gone.has(id)){delete S.del[id];delete S.synced[id]}});
       // 4) enviar o que mudou aqui
       const ids=Object.keys(S.dirty).filter(id=>S.entries[id]);
-      const sent=ids.map(id=>({id,t:S.entries[id].t,status:S.entries[id].status,rating:S.entries[id].rating,note:S.entries[id].note}));
+      const sent=ids.map(id=>({id,t:S.entries[id].t,status:S.entries[id].status,rating:S.entries[id].rating,note:S.entries[id].note,trip:S.entries[id].trip||null}));
       await Cloud.push(sent);
       sent.forEach(x=>{S.synced[x.id]=1;if(S.entries[x.id]&&S.entries[x.id].t===x.t)delete S.dirty[x.id]});
       Object.keys(S.dirty).forEach(id=>{if(!S.entries[id])delete S.dirty[id]});
+      await Sync.trips();
       Sync.state="idle";Sync.last=Date.now();save()
     }catch(e){
       Sync.state="error";Sync.err=(e&&e.message)||"erro";save();

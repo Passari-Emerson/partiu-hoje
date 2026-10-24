@@ -4,7 +4,7 @@ const { googleGet, sendError, noKey, getKey } = require("./_google");
 const { spendRaw, limitBody } = require("./_quota");
 
 // Campos da faixa mais barata do Google (sem nota, sem horários).
-const FIELDS = "id,displayName,formattedAddress,shortFormattedAddress,location,photos,primaryType,primaryTypeDisplayName,googleMapsUri,businessStatus";
+const FIELDS = "id,displayName,formattedAddress,shortFormattedAddress,location,photos,primaryType,types,primaryTypeDisplayName,googleMapsUri,businessStatus";
 
 module.exports = async (req, res) => {
   const key = getKey();

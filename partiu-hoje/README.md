@@ -71,6 +71,13 @@ Se você já publicou uma versão antes:
 5. Faça um novo deploy (**Deployments > ... > Redeploy**) e abra o endereço no celular.
 6. Para virar ícone: **Compartilhar > Adicionar à Tela de Início** (iPhone) ou menu do navegador > **Adicionar à tela inicial** (Android).
 
+## Modo viagem e aprendizado
+
+- **Modo viagem (plano pago):** em **Onde buscar** (toque no botão do local, no topo) você cria uma viagem com nome, hotel, endereço ou cidade e o raio (1 a 50 km). O app passa a buscar lá, como se você estivesse no endereço. Os lugares que você curtir ficam marcados com a viagem e aparecem na aba **Lista** com um filtro por viagem. As viagens ficam salvas na conta (só o nome, o texto do endereço e o raio; as coordenadas são buscadas de novo no Google). Se o plano vencer, as viagens continuam guardadas, mas o recurso fica bloqueado até renovar.
+- **Aprendizado (todos os planos):** o app aprende com o que você faz. Nota 5 num bar faz bares parecidos subirem na fila; nota 1 ou 2 faz descerem; nota 3 não muda nada. "Quero ir" e "Já fui" sem nota ensinam um pouco, e passar um lugar ensina muito pouco. O card explica o motivo ("Parecido com lugares que você gostou"). O que fica guardado são só números por categoria e tipo de lugar; nome, foto e nota do Google não ficam. Em **Perfil > Zerar aprendizado e recusados** o app esquece o que aprendeu com os lugares que você passou; a lista e as notas continuam ensinando.
+- **Passeios:** além de comer e beber, há 19 categorias de passeio (pontos turísticos, museus, natureza, passeios de barco, vinícolas, aventura, praias, tours guiados, shows e outras). Elas funcionam igual: você marca "Quero ir" ou "Já fui" e dá nota.
+- **Restrições alimentares:** aparecem com asterisco e o aviso de que a informação vem do próprio restaurante e de avaliações de clientes, sem garantia. O Google só confirma "serve comida vegetariana"; para alergia, a pessoa precisa confirmar direto com o local.
+
 ## Ligar a conta na nuvem (Supabase)
 
 Esta parte é opcional. Sem ela o app funciona só no aparelho, e o botão Entrar explica que a conta não está ativada. Os nomes dos menus do Supabase mudam de vez em quando; se algo estiver em outro lugar, procure pelo nome em inglês entre parênteses.
@@ -126,6 +133,9 @@ Cada lugar mostrado custa dinheiro no Google, então o app limita o uso. O limit
 | Grátis (com conta) | 20 | 2 | grátis |
 | Premium | 60 | 3 | R$ 5 por semana ou R$ 15 por mês |
 | Premium Gold | 120 | 5 | R$ 10 por semana ou R$ 30 por mês |
+
+Os planos Premium e Premium Gold também liberam dois recursos: o botão **Voltar** (desfaz a última decisão no deslizar; não gasta o limite de novo porque o lugar já foi visto hoje) e o **Modo viagem**. No plano grátis o botão Voltar aparece com um cadeado e abre a tela de planos. Para liberar ou bloquear um recurso em cada plano, edite as colunas `can_undo` e `can_travel` na tabela `plans`.
+
 
 - **Mudar números e preços:** no Supabase, abra **Table Editor > plans** e edite a linha. Rodar o `setup.sql` de novo não apaga a sua edição.
 - **Cuidado com o custo:** pelas minhas contas, cada lugar mostrado custa em torno de US$ 0,01 no Google (a foto pesa mais). Quem usa o teto todo dia custa mais do que paga: 60 por dia fica perto de US$ 16 por mês e 120 por dia perto de US$ 32, contra R$ 15 e R$ 30 de receita. Quase ninguém usa o teto todo dia, mas meça antes de divulgar. Para ver o uso real, rode no SQL Editor: `select day, count(*) lugares, count(distinct user_id) pessoas from public.views where kind = 'card' group by day order by day desc;`

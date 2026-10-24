@@ -102,7 +102,8 @@
     if (!a.ok) {
       const hint = a.j && (a.j.message || a.j.hint) || "";
       let msg = "Não consegui salvar na nuvem agora.";
-      if (/relation .* does not exist|schema cache|PGRST205|42P01/.test(JSON.stringify(a.j || {}))) msg = "As tabelas do banco ainda não foram criadas. Rode o arquivo supabase/setup.sql no Supabase (README, passo do banco de dados).";
+      if (/42703|PGRST204|column .* does not exist|Could not find the .* column/.test(JSON.stringify(a.j || {}))) msg = "O banco precisa ser atualizado. Rode de novo o arquivo supabase/setup.sql no Supabase (README).";
+      else if (/relation .* does not exist|schema cache|PGRST205|42P01/.test(JSON.stringify(a.j || {}))) msg = "As tabelas do banco ainda não foram criadas. Rode o arquivo supabase/setup.sql no Supabase (README, passo do banco de dados).";
       else if (/PGRST202|42883|could not find the function/i.test(JSON.stringify(a.j || {}))) msg = "O banco ainda não tem os limites de uso. Rode de novo o arquivo supabase/setup.sql no Supabase.";
       else if (a.status === 401) msg = "Sua sessão venceu. Entre de novo.";
       throw fail(msg, { code: "rest", status: a.status, detail: String(hint).slice(0, 200) });
@@ -241,7 +242,7 @@
 
     // ---- lista pessoal
     async pull() {
-      const rows = await rest("entries?select=place_id,status,rating,note,updated_at&order=updated_at.desc&limit=2000");
+      const rows = await rest("entries?select=place_id,status,rating,note,trip,updated_at&order=updated_at.desc&limit=2000");
       return rows || [];
     },
     async push(items) {
@@ -252,6 +253,7 @@
           user_id: u, place_id: x.id, status: x.status === "been" ? "been" : "want",
           rating: x.rating == null ? null : Math.max(0, Math.min(5, Math.round(x.rating * 2) / 2)),
           note: x.note ? String(x.note).slice(0, 500) : null,
+          trip: /^[a-z0-9]{4,24}$/.test(x.trip || "") ? x.trip : null,
         }));
         await rest("entries?on_conflict=user_id,place_id", { method: "POST", body: part, headers: { Prefer: "resolution=merge-duplicates,return=minimal" } });
       }
@@ -273,6 +275,15 @@
     async getProfile() {
       const rows = await rest("profiles?select=display_name,share_token,shared_at&limit=1");
       return (rows && rows[0]) || null;
+    },
+    // Viagens (modo viagem): nome, endereço digitado e raio. Ficam no perfil da pessoa.
+    async getTrips() {
+      const rows = await rest("profiles?select=trips,trips_t&limit=1");
+      return (rows && rows[0]) || null;
+    },
+    async saveTrips(trips, t) {
+      const clean = (trips || []).slice(0, 10).map((x) => ({ id: String(x.id), name: String(x.name || "").slice(0, 40), addr: String(x.addr || "").slice(0, 120), km: Math.max(1, Math.min(50, Math.round(Number(x.km) || 5))) }));
+      await rest("profiles?on_conflict=user_id", { method: "POST", body: [{ user_id: SESSION.user.id, trips: clean, trips_t: Math.round(t) || Date.now() }], headers: { Prefer: "resolution=merge-duplicates,return=minimal" } });
     },
     async saveProfile(p) {
       const body = [{ user_id: SESSION.user.id, display_name: p.name ? String(p.name).trim().slice(0, 40) || null : null, share_token: p.token || null, shared_at: p.token ? new Date().toISOString() : null }];
