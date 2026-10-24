@@ -5,7 +5,10 @@ const { cleanEnv } = require("./_google");
 
 // Lê as variáveis do Supabase. Se estiverem ausentes ou erradas, o app roda sem conta e sem limites (modo local).
 function cloudConfig() {
-  const url = cleanEnv("SUPABASE_URL").replace(/\/+$/, "");
+  // Aceita o endereço colado por inteiro (com /rest/v1/ no fim, sem https:// ou com espaços) e fica só com https://projeto.supabase.co
+  const rawUrl = cleanEnv("SUPABASE_URL");
+  const mu = /^(?:https?:\/\/)?([a-z0-9-]+)\.supabase\.(co|in)(?:[\/?#].*)?$/i.exec(rawUrl);
+  const url = mu ? "https://" + mu[1].toLowerCase() + ".supabase." + mu[2].toLowerCase() : rawUrl.replace(/\/+$/, "");
   const key = cleanEnv("SUPABASE_ANON_KEY") || cleanEnv("SUPABASE_PUBLISHABLE_KEY");
   let secret = /^sb_secret_/.test(key);
   if (!secret && key.split(".").length === 3) {

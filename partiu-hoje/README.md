@@ -95,9 +95,11 @@ Esta parte é opcional. Sem ela o app funciona só no aparelho, e o botão Entra
 2. Copie o **Project URL** (algo como `https://abcd1234.supabase.co`) e a chave **anon** (ou **publishable**).
 3. **Nunca use a chave `service_role` / `secret`.** O app recusa essa chave de propósito.
 
+> Dica: o endereço do projeto é só `https://abcdefgh.supabase.co`. Se você copiar da tela **Integrations > Data API**, ela mostra `.../rest/v1/` no final; o app aceita assim também, mas o ideal é colar só até `.supabase.co`.
+
 ### 4. Colocar na Vercel
 1. Em **Settings > Environment Variables**, crie `SUPABASE_URL` (o Project URL) e `SUPABASE_ANON_KEY` (a chave pública).
-2. Faça um novo deploy (**Deployments > ... > Redeploy**).
+2. Faça um novo deploy (**Deployments > ... > Redeploy**). Mudar variável na Vercel só vale depois de um novo deploy.
 3. Abra `seu-endereco.vercel.app/api/health`: o campo `conta_na_nuvem` deve dizer "configurada".
 
 ### 5. Endereços permitidos

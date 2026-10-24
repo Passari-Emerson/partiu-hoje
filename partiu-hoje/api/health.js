@@ -9,7 +9,10 @@ module.exports = async (req, res) => {
   const url = cleanEnv("SUPABASE_URL"), akey = cleanEnv("SUPABASE_ANON_KEY") || cleanEnv("SUPABASE_PUBLISHABLE_KEY");
   const conta = !url && !akey ? "não configurada (o app funciona só neste aparelho)"
     : !url ? "falta SUPABASE_URL" : !akey ? "falta SUPABASE_ANON_KEY"
-    : /sb_secret_/.test(akey) ? "ERRO: você colou a chave SECRETA; use a chave pública (anon / publishable)" : "configurada";
+    : /sb_secret_/.test(akey) ? "ERRO: você colou a chave SECRETA; use a chave pública (anon / publishable)"
+    : !/^(?:https?:\/\/)?[a-z0-9-]+\.supabase\.(co|in)(?:[\/?#].*)?$/i.test(url) ? "ERRO: SUPABASE_URL não parece um endereço do Supabase. Use só algo como https://abcdefgh.supabase.co"
+    : !/^(sb_publishable_[\w-]{4,}|eyJ[\w-]+\.[\w-]+\.[\w-]+)$/.test(akey) ? "ERRO: SUPABASE_ANON_KEY não parece a chave pública (começa com sb_publishable_ ou eyJ). Copie de novo, inteira, sem espaços"
+    : "configurada";
   // Confere se o banco já tem os planos e limites (a função get_plans é pública).
   let limites = "desligados (sem conta na nuvem, o uso não tem limite)";
   const c = cloudConfig();
